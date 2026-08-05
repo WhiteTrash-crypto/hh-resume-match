@@ -310,7 +310,7 @@ export default function App() {
               <p className="field-error">Нужна ссылка вида docs.google.com/spreadsheets/d/…</p>
             )}
             <label>
-              Поисковые ключи на hh.ru
+              Поисковые ключи на hh.ru (не более 5)
               <input
                 type="text"
                 className={queryInvalid ? 'invalid' : undefined}
