@@ -31,12 +31,33 @@ const QUALIFIED_HEADERS = [
   'snippet',
 ]
 
-async function loadCredentials(): Promise<object> {
-  const raw = process.env.GOOGLE_SA_JSON
-  if (raw) return JSON.parse(raw)
-  const p = process.env.GOOGLE_SA_PATH
-  if (p) return JSON.parse(await readFile(p, 'utf8'))
-  throw new Error('GOOGLE_SA_JSON или GOOGLE_SA_PATH не задан')
+async function loadCredentials(): Promise<Record<string, unknown>> {
+  const b64 = process.env.GOOGLE_SA_JSON_BASE64?.trim()
+  const raw = process.env.GOOGLE_SA_JSON?.trim()
+  let parsed: Record<string, unknown>
+
+  if (b64) {
+    parsed = JSON.parse(Buffer.from(b64, 'base64').toString('utf8'))
+  } else if (raw) {
+    parsed = JSON.parse(raw)
+  } else {
+    const p = process.env.GOOGLE_SA_PATH
+    if (p) {
+      parsed = JSON.parse(await readFile(p, 'utf8'))
+    } else {
+      throw new Error(
+        'На сервере не задан GOOGLE_SA_JSON (или GOOGLE_SA_JSON_BASE64). GOOGLE_SA_PATH на Netlify не работает.',
+      )
+    }
+  }
+
+  if (typeof parsed.private_key === 'string') {
+    parsed.private_key = parsed.private_key.replace(/\\n/g, '\n')
+  }
+  if (!parsed.client_email || !parsed.private_key) {
+    throw new Error('GOOGLE_SA_JSON битый: нет client_email или private_key')
+  }
+  return parsed
 }
 
 async function getSheets() {
@@ -168,7 +189,20 @@ export async function writeResults(opts: {
 }
 
 export async function verifySheetAccess(sheetId: string): Promise<boolean> {
-  const sheets = await getSheets()
-  await sheets.spreadsheets.get({ spreadsheetId: sheetId })
-  return true
+  try {
+    const sheets = await getSheets()
+    await sheets.spreadsheets.get({ spreadsheetId: sheetId })
+    return true
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/GOOGLE_SA_JSON|GOOGLE_SA_PATH|private_key|client_email|битый/i.test(msg)) {
+      throw e
+    }
+    if (/permission|forbidden|403|404|not found|insufficient/i.test(msg)) {
+      throw new Error(
+        `Нет доступа к таблице (${msg}). Проверьте шаринг на service account и что в Netlify задан GOOGLE_SA_JSON того же аккаунта.`,
+      )
+    }
+    throw new Error(`Google Sheets API: ${msg}`)
+  }
 }

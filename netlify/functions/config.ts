@@ -27,11 +27,10 @@ export default withApi(async (req, session) => {
     }
     try {
       await verifySheetAccess(sheetId)
-    } catch {
+    } catch (e) {
       return json(
         {
-          error:
-            'Нет доступа к таблице. Расшарьте её на service account как Редактор и попробуйте снова.',
+          error: e instanceof Error ? e.message : 'Нет доступа к таблице',
         },
         { status: 400 },
       )
