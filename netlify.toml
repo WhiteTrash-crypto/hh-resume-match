@@ -3,6 +3,10 @@
   publish = "dist"
   functions = "netlify/functions"
 
+[build.environment]
+  NODE_VERSION = "22"
+  # Do not set NETLIFY_DEV=true in Netlify UI — breaks session storage on prod
+
 [dev]
   command = "npm run dev:vite"
   targetPort = 5173
