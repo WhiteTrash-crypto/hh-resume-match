@@ -388,10 +388,7 @@ export default function App() {
         {error && <p className="error">{error}</p>}
       </section>
 
-      <p className="footer">
-        Бесплатный MVP · только hh.ru · без аккаунта · сессия в cookie. Не загружайте чужие персональные
-        данные без согласия.
-      </p>
+      <p className="footer">made by Crucian Labs</p>
     </div>
   )
 }

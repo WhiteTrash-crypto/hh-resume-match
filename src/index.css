@@ -53,6 +53,7 @@ a {
   width: min(980px, calc(100% - 2rem));
   margin: 0 auto;
   padding: 2.5rem 0 4rem;
+  padding-bottom: max(4rem, env(safe-area-inset-bottom));
 }
 
 .hero {
@@ -64,10 +65,11 @@ a {
 .brand {
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: clamp(2.6rem, 7vw, 4.4rem);
+  font-size: clamp(2.2rem, 11vw, 4.4rem);
   letter-spacing: -0.04em;
   line-height: 0.95;
   margin: 0;
+  overflow-wrap: anywhere;
 }
 
 .brand span {
@@ -78,7 +80,7 @@ a {
   max-width: 38rem;
   margin: 0;
   color: var(--muted);
-  font-size: 1.05rem;
+  font-size: clamp(0.95rem, 2.8vw, 1.05rem);
 }
 
 .grid {
@@ -98,6 +100,7 @@ a {
   border-radius: var(--radius);
   padding: 1.25rem 1.35rem;
   backdrop-filter: blur(10px);
+  overflow: hidden;
 }
 
 .panel h2 {
@@ -124,11 +127,13 @@ input[type='text'],
 input[type='url'],
 input[type='number'] {
   width: 100%;
+  max-width: 100%;
   border: 1px solid var(--line);
   background: #0b0f16;
   color: var(--ink);
   border-radius: 12px;
   padding: 0.75rem 0.9rem;
+  font-size: 1rem; /* avoids iOS zoom on focus */
 }
 
 input:focus {
@@ -162,6 +167,7 @@ input.invalid:focus {
   border: 0;
   border-radius: 999px;
   padding: 0.75rem 1.2rem;
+  min-height: 44px;
   background: var(--accent);
   color: var(--accent-ink);
   font-weight: 700;
@@ -210,6 +216,11 @@ input.invalid:focus {
   font-size: 0.92rem;
 }
 
+.list li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 0.84rem;
@@ -256,6 +267,8 @@ input.invalid:focus {
   margin-top: 2rem;
   color: var(--muted);
   font-size: 0.85rem;
+  text-align: center;
+  letter-spacing: 0.02em;
 }
 
 .drop {
@@ -270,4 +283,69 @@ input.invalid:focus {
 
 .drop input {
   margin-top: 0.6rem;
+  max-width: 100%;
+}
+
+@media (max-width: 639px) {
+  .app {
+    width: min(980px, calc(100% - 1.25rem));
+    padding: 1.25rem 0 3rem;
+    padding-bottom: max(3rem, env(safe-area-inset-bottom));
+  }
+
+  .hero {
+    gap: 0.75rem;
+    padding: 0.5rem 0 1.25rem;
+  }
+
+  .panel {
+    padding: 1rem 1.05rem;
+    border-radius: 14px;
+  }
+
+  .panel h2 {
+    font-size: 1.1rem;
+  }
+
+  .row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .row .btn {
+    width: 100%;
+  }
+
+  .list li {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 0.65rem;
+  }
+
+  .list li .btn {
+    width: 100%;
+  }
+
+  .sa-box {
+    padding: 0.75rem 0.85rem;
+    font-size: 0.78rem;
+  }
+
+  .status {
+    padding: 0.85rem;
+    overflow-wrap: anywhere;
+  }
+
+  .drop {
+    padding: 0.95rem 0.75rem;
+  }
+
+  .check {
+    align-items: flex-start;
+  }
+
+  .check input {
+    margin-top: 0.2rem;
+    flex-shrink: 0;
+  }
 }
