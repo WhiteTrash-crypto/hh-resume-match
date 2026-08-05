@@ -127,7 +127,8 @@ export async function startHhCollect(opts: {
 }): Promise<{ runId: string }> {
   const token = process.env.APIFY_TOKEN
   if (!token) throw new Error('APIFY_TOKEN не задан')
-  const actor = process.env.APIFY_ACTOR || 'abotapi/hh-ru-jobs-scraper'
+  const actor = process.env.APIFY_ACTOR
+  if (!actor) throw new Error('APIFY_ACTOR не задан')
   const client = new ApifyClient({ token })
   const searchUrl = buildSearchUrl(opts)
   const run = await client.actor(actor).start({

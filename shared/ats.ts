@@ -39,7 +39,8 @@ export async function scoreVacancy(
 ): Promise<AtsResult> {
   const apiKey = process.env.OPENAI_API_KEY
   if (!apiKey) throw new Error('OPENAI_API_KEY не задан')
-  const model = process.env.OPENAI_MODEL || 'gpt-4o-mini'
+  const model = process.env.OPENAI_MODEL
+  if (!model) throw new Error('OPENAI_MODEL не задан')
   const client = new OpenAI({ apiKey })
   const completion = await client.chat.completions.create({
     model,

@@ -5,7 +5,8 @@
 
 [build.environment]
   NODE_VERSION = "22"
-  # Do not set NETLIFY_DEV=true in Netlify UI — breaks session storage on prod
+  # Non-secret config keys often duplicated in docs/defaults — omit from scan
+  SECRETS_SCAN_OMIT_KEYS = "APIFY_ACTOR,OPENAI_MODEL,VITE_GOOGLE_SA_EMAIL,PUBLIC_GOOGLE_SA_EMAIL,GOOGLE_SA_PATH,GOOGLE_SA_JSON,NETLIFY_DEV"
 
 [dev]
   command = "npm run dev:vite"

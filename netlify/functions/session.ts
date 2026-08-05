@@ -20,9 +20,7 @@ const baseHandler: Handler = async (event) => {
       job: session.job,
       ready: readiness.ok,
       missing: readiness.missing,
-      saEmail:
-        process.env.PUBLIC_GOOGLE_SA_EMAIL ||
-        'linkedin-scraper@sapient-forest-504606-f3.iam.gserviceaccount.com',
+      saEmail: process.env.PUBLIC_GOOGLE_SA_EMAIL || '',
     },
     headers,
   )

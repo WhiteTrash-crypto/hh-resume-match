@@ -21,10 +21,10 @@ npm run dev   # netlify dev → http://localhost:8888
 | Переменная | Назначение |
 |---|---|
 | `APIFY_TOKEN` | Apify для сбора hh.ru |
-| `APIFY_ACTOR` | по умолчанию `abotapi/hh-ru-jobs-scraper` |
+| `APIFY_ACTOR` | id актора Apify для HH |
 | `OPENAI_API_KEY` | ATS-скоринг |
-| `OPENAI_MODEL` | по умолчанию `gpt-4o-mini` |
-| `GOOGLE_SA_JSON` / `GOOGLE_SA_PATH` | service account |
+| `OPENAI_MODEL` | модель OpenAI для ATS |
+| `GOOGLE_SA_JSON` / `GOOGLE_SA_PATH` | service account (на Netlify — JSON) |
 | `PUBLIC_GOOGLE_SA_EMAIL` / `VITE_GOOGLE_SA_EMAIL` | email для шаринга таблицы |
 | `SESSION_SECRET` | резерв под подпись cookie |
 
