@@ -29,7 +29,7 @@ export default withApi(async (req, session) => {
       query: session.config.query!,
       remoteOnly: session.config.remoteOnly !== false,
       periodDays: session.config.periodDays || 7,
-      maxPages: session.config.maxPages || 1,
+      maxPages: session.config.maxPages || 5,
     })
     const plan = queries
       .map((q, i) => `${q}→${pagesPerQuery[i] || 0}стр`)
@@ -37,7 +37,7 @@ export default withApi(async (req, session) => {
     session.job = {
       id: uuid(),
       status: 'collecting',
-      message: `Сбор hh.ru (${queries.length} ключ., бюджет ${session.config.maxPages || 1} стр.): ${plan}`,
+      message: `Сбор hh.ru (${queries.length} ключ., бюджет ${session.config.maxPages || 5} стр.): ${plan}`,
       apifyRunId: runIds[0],
       apifyRunIds: runIds,
       queries,

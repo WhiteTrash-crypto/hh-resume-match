@@ -31,19 +31,37 @@ type SessionPayload = {
   saEmail: string
 }
 
+const TOTAL_PAGES = 5 // 5 × 50 = 250 vacancies budget for the whole run
+const MAX_KEYS = 5
+
 const empty: SessionPayload = {
   resumes: [],
   config: {
     sheetUrl: '',
-    query: 'продакт-менеджер',
+    query: '',
     remoteOnly: true,
     periodDays: 7,
-    maxPages: 1,
+    maxPages: TOTAL_PAGES,
   },
   job: { status: 'idle', message: 'Ожидание запуска' },
   ready: false,
   missing: ['резюме', 'ссылка на Google Sheet'],
   saEmail: import.meta.env.VITE_GOOGLE_SA_EMAIL || '',
+}
+
+function countKeys(raw: string): number {
+  return raw
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean).length
+}
+
+function isValidSheetUrl(raw: string): boolean {
+  const v = raw.trim()
+  if (!v) return false
+  if (/^https?:\/\/docs\.google\.com\/spreadsheets\/d\/[a-zA-Z0-9-_]+/i.test(v)) return true
+  if (/^[a-zA-Z0-9-_]{30,}$/.test(v)) return true
+  return false
 }
 
 async function api<T>(path: string, init?: RequestInit): Promise<T> {
@@ -62,14 +80,24 @@ export default function App() {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
   const [sheetUrl, setSheetUrl] = useState('')
-  const [query, setQuery] = useState('продакт-менеджер')
+  const [query, setQuery] = useState('')
   const [remoteOnly, setRemoteOnly] = useState(true)
+  const [sheetTouched, setSheetTouched] = useState(false)
+  const [queryTouched, setQueryTouched] = useState(false)
+
+  const queryKeyCount = useMemo(() => countKeys(query), [query])
+  const queryTooMany = queryKeyCount > MAX_KEYS
+  const queryEmpty = !query.trim()
+  const sheetInvalid = sheetTouched && !isValidSheetUrl(sheetUrl)
+  const queryInvalid = queryTouched && (queryEmpty || queryTooMany)
+  const formValid =
+    isValidSheetUrl(sheetUrl) && !queryEmpty && !queryTooMany && session.resumes.length > 0
 
   const refresh = useCallback(async () => {
     const data = await api<SessionPayload>('session')
     setSession(data)
     setSheetUrl(data.config.sheetUrl || '')
-    setQuery(data.config.query || 'продакт-менеджер')
+    setQuery(data.config.query || '')
     setRemoteOnly(data.config.remoteOnly !== false)
     return data
   }, [])
@@ -90,10 +118,7 @@ export default function App() {
     const t = setInterval(() => {
       api<{ job: Job }>('jobs-status')
         .then(async () => {
-          const data = await refresh()
-          if (data.job.status === 'done' || data.job.status === 'error') {
-            /* stop via running memo */
-          }
+          await refresh()
         })
         .catch((e) => setError(e.message))
     }, 2500)
@@ -136,15 +161,36 @@ export default function App() {
     }
   }
 
+  function assertClientValid() {
+    setSheetTouched(true)
+    setQueryTouched(true)
+    if (!isValidSheetUrl(sheetUrl)) {
+      throw new Error('Вставьте корректную ссылку на Google Sheet')
+    }
+    if (!query.trim()) {
+      throw new Error('Укажите хотя бы один поисковый ключ')
+    }
+    if (countKeys(query) > MAX_KEYS) {
+      throw new Error('Не более 5 запросов')
+    }
+  }
+
   async function onSaveConfig(e: FormEvent) {
     e.preventDefault()
     setBusy(true)
     setError('')
     try {
+      assertClientValid()
       await api('config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sheetUrl, query, remoteOnly, periodDays: 7, maxPages: 1 }),
+        body: JSON.stringify({
+          sheetUrl,
+          query,
+          remoteOnly,
+          periodDays: 7,
+          maxPages: TOTAL_PAGES,
+        }),
       })
       await refresh()
     } catch (err) {
@@ -158,10 +204,17 @@ export default function App() {
     setBusy(true)
     setError('')
     try {
+      assertClientValid()
       await api('config', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ sheetUrl, query, remoteOnly, periodDays: 7, maxPages: 1 }),
+        body: JSON.stringify({
+          sheetUrl,
+          query,
+          remoteOnly,
+          periodDays: 7,
+          maxPages: TOTAL_PAGES,
+        }),
       })
       await api('jobs-start', { method: 'POST' })
       await refresh()
@@ -195,7 +248,7 @@ export default function App() {
       <div className="grid two">
         <section className="panel">
           <h2>1. Резюме</h2>
-          <p className="hint">До 5 PDF. Текст извлекается на сервере для ATS-скоринга.</p>
+          <p className="hint">До 5 PDF. Текст извлекается в браузере для ATS-скоринга.</p>
           <div className="drop">
             Выберите PDF — загрузка начнётся сразу
             <div>
@@ -240,30 +293,43 @@ export default function App() {
             Создайте таблицу и выдайте права Редактор на наш service account:
           </p>
           <div className="sa-box mono">{session.saEmail}</div>
-          <form onSubmit={onSaveConfig}>
+          <form onSubmit={onSaveConfig} noValidate>
             <label>
               Ссылка на таблицу
               <input
                 type="url"
+                className={sheetInvalid ? 'invalid' : undefined}
                 placeholder="https://docs.google.com/spreadsheets/d/…"
                 value={sheetUrl}
                 onChange={(e) => setSheetUrl(e.target.value)}
+                onBlur={() => setSheetTouched(true)}
                 required
               />
             </label>
+            {sheetInvalid && (
+              <p className="field-error">Нужна ссылка вида docs.google.com/spreadsheets/d/…</p>
+            )}
             <label>
-              Поисковые ключи на hh.ru (через запятую, макс. 5)
+              Поисковые ключи на hh.ru
               <input
                 type="text"
-                placeholder="продакт-менеджер, product manager, проджект"
+                className={queryInvalid ? 'invalid' : undefined}
+                placeholder="менеджер по продажам"
                 value={query}
-                onChange={(e) => setQuery(e.target.value)}
+                onChange={(e) => {
+                  setQuery(e.target.value)
+                  if (!queryTouched) setQueryTouched(true)
+                }}
+                onBlur={() => setQueryTouched(true)}
                 required
               />
             </label>
-            <p className="hint" style={{ marginTop: '-0.4rem' }}>
-              Общий бюджет страниц делится между ключами — 5 ключей не дают в 5 раз больше запросов.
-            </p>
+            {queryTouched && queryTooMany && (
+              <p className="field-error">Не более 5 запросов</p>
+            )}
+            {queryTouched && queryEmpty && (
+              <p className="field-error">Укажите хотя бы один ключ</p>
+            )}
             <label className="check">
               <input
                 type="checkbox"
@@ -273,7 +339,7 @@ export default function App() {
               Только удалёнка
             </label>
             <div className="row">
-              <button className="btn ghost" type="submit" disabled={busy}>
+              <button className="btn ghost" type="submit" disabled={busy || queryTooMany}>
                 Сохранить настройки
               </button>
             </div>
@@ -287,11 +353,21 @@ export default function App() {
           Заполните поля и нажмите «Сохранить настройки». Потом — «Начать парсинг».
           Результат: вкладки <code> hh_candidates</code> / <code>hh_qualified</code>.
         </p>
-        {!session.ready && (
-          <p className="error">Не хватает: {session.missing.join(', ')}</p>
+        {!formValid && (
+          <p className="error">
+            Не хватает:{' '}
+            {[
+              !session.resumes.length && 'резюме',
+              !isValidSheetUrl(sheetUrl) && 'корректная ссылка на Google Sheet',
+              queryEmpty && 'поисковый ключ',
+              queryTooMany && 'не более 5 запросов',
+            ]
+              .filter(Boolean)
+              .join(', ')}
+          </p>
         )}
         <div className="row">
-          <button className="btn" disabled={!session.ready || busy || running} onClick={onStart}>
+          <button className="btn" disabled={!formValid || busy || running} onClick={onStart}>
             {running ? 'Идёт обработка…' : 'Начать парсинг'}
           </button>
         </div>

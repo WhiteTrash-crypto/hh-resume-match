@@ -7,7 +7,7 @@ import type { AtsResult, Vacancy } from '../../shared/types'
 import { json, withApi } from './_lib'
 
 const SCORE_BATCH = 3
-const MAX_SCORE = 25
+const MAX_SCORE = 250
 
 export default withApi(async (_req, session) => {
   const job = session.job

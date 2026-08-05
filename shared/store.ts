@@ -74,10 +74,10 @@ export function emptySession(id: string): SessionData {
     resumes: [],
     resumeTexts: {},
     config: {
-      query: 'продакт-менеджер',
+      query: '',
       remoteOnly: true,
       periodDays: 7,
-      maxPages: 1,
+      maxPages: 5,
     },
     job: {
       id: '',

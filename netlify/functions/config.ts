@@ -23,7 +23,13 @@ export default withApi(async (req, session) => {
   if (body.sheetUrl !== undefined) {
     const sheetId = extractSheetId(body.sheetUrl)
     if (!sheetId) {
-      return json({ error: 'Не удалось разобрать ссылку на Google Sheet' }, { status: 400 })
+      return json(
+        {
+          error:
+            'Некорректная ссылка на Google Sheet. Ожидается docs.google.com/spreadsheets/d/…',
+        },
+        { status: 400 },
+      )
     }
     try {
       await verifySheetAccess(sheetId)
@@ -58,8 +64,8 @@ export default withApi(async (req, session) => {
     session.config.periodDays = Math.max(1, Math.min(30, Number(body.periodDays) || 7))
   }
   if (body.maxPages !== undefined) {
-    // Fixed total page budget for the whole run (split across keys)
-    session.config.maxPages = Math.max(1, Math.min(6, Number(body.maxPages) || 1))
+    // Fixed total page budget (5 pages × 50 = 250 vacancies for the whole run)
+    session.config.maxPages = Math.max(1, Math.min(5, Number(body.maxPages) || 5))
   }
 
   await saveSession(session)

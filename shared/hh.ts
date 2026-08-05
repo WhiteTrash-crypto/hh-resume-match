@@ -59,7 +59,7 @@ export function parseSearchQueries(raw: string): string[] {
 export function distributePageBudget(totalPages: number, queryCount: number): number[] {
   const n = Math.max(0, queryCount)
   if (n === 0) return []
-  const total = Math.max(1, Math.min(6, Math.floor(totalPages) || 1))
+  const total = Math.max(1, Math.min(5, Math.floor(totalPages) || 5))
   const base = Math.floor(total / n)
   const rem = total % n
   return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0))
@@ -162,7 +162,7 @@ export async function startHhCollect(opts: {
   const queries = parseSearchQueries(opts.query)
   if (!queries.length) throw new Error('Укажите хотя бы один поисковый ключ')
 
-  const pagesPerQuery = distributePageBudget(opts.maxPages || 1, queries.length)
+  const pagesPerQuery = distributePageBudget(opts.maxPages || 5, queries.length)
   const client = new ApifyClient({ token })
   const runIds: string[] = []
 

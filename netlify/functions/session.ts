@@ -11,7 +11,7 @@ export default withApi(async (_req, session) => {
       query: session.config.query || '',
       remoteOnly: session.config.remoteOnly !== false,
       periodDays: session.config.periodDays || 7,
-      maxPages: session.config.maxPages || 1,
+      maxPages: session.config.maxPages || 5,
     },
     job: session.job,
     ready: readiness.ok,

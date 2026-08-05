@@ -136,6 +136,20 @@ input:focus {
   border-color: transparent;
 }
 
+input.invalid {
+  border-color: color-mix(in srgb, var(--danger) 80%, transparent);
+}
+
+input.invalid:focus {
+  outline: 2px solid color-mix(in srgb, var(--danger) 55%, transparent);
+}
+
+.field-error {
+  margin: -0.45rem 0 0.85rem;
+  color: var(--danger);
+  font-size: 0.86rem;
+}
+
 .row {
   display: flex;
   gap: 0.75rem;
