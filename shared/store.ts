@@ -5,8 +5,19 @@ import type { SessionData } from './types'
 
 const LOCAL_DIR = path.join(process.cwd(), '.data', 'sessions')
 
+/**
+ * Local filesystem only for `netlify dev` on your machine.
+ * On Netlify cloud always use Blobs — ignore mistaken NETLIFY_DEV site env.
+ */
 function useLocal(): boolean {
-  return process.env.NETLIFY_DEV === 'true' || process.env.NODE_ENV === 'development' || !process.env.NETLIFY
+  if (process.env.AWS_LAMBDA_FUNCTION_NAME) return false
+  if (process.env.NETLIFY === 'true' && process.env.NETLIFY_DEV !== 'true') return false
+  // If NETLIFY_DEV was wrongly set in Netlify UI, Lambda name still forces Blobs above.
+  return true
+}
+
+function blobsStore() {
+  return getStore({ name: 'sessions', consistency: 'strong' })
 }
 
 async function localGet(id: string): Promise<SessionData | null> {
@@ -26,10 +37,10 @@ async function localSet(id: string, data: SessionData): Promise<void> {
 export async function getSession(id: string): Promise<SessionData | null> {
   if (useLocal()) return localGet(id)
   try {
-    const store = getStore('sessions')
-    return (await store.get(id, { type: 'json' })) as SessionData | null
-  } catch {
-    return localGet(id)
+    return (await blobsStore().get(id, { type: 'json' })) as SessionData | null
+  } catch (e) {
+    console.error('blobs get failed', e)
+    throw new Error('Не удалось прочитать сессию (Netlify Blobs).')
   }
 }
 
@@ -40,10 +51,10 @@ export async function saveSession(data: SessionData): Promise<void> {
     return
   }
   try {
-    const store = getStore('sessions')
-    await store.setJSON(data.id, data)
-  } catch {
-    await localSet(data.id, data)
+    await blobsStore().setJSON(data.id, data)
+  } catch (e) {
+    console.error('blobs set failed', e)
+    throw new Error('Не удалось сохранить сессию (Netlify Blobs).')
   }
 }
 

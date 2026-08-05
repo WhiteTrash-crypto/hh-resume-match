@@ -104,9 +104,18 @@ export default function App() {
     setBusy(true)
     setError('')
     try {
-      const fd = new FormData()
-      fd.append('file', file)
-      await api('resumes', { method: 'POST', body: fd })
+      const data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader()
+        reader.onload = () => resolve(String(reader.result || ''))
+        reader.onerror = () => reject(new Error('Не удалось прочитать файл'))
+        reader.readAsDataURL(file)
+      })
+      const result = await api<{ resumes: Resume[] }>('resumes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ filename: file.name, data }),
+      })
+      setSession((s) => ({ ...s, resumes: result.resumes, ready: false }))
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка загрузки')
@@ -189,16 +198,26 @@ export default function App() {
           <h2>1. Резюме</h2>
           <p className="hint">До 5 PDF. Текст извлекается на сервере для ATS-скоринга.</p>
           <div className="drop">
-            Перетащите PDF или выберите файл
+            Выберите PDF — загрузка начнётся сразу
             <div>
               <input
                 type="file"
                 accept="application/pdf,.pdf"
                 disabled={busy}
-                onChange={(e) => onUpload(e.target.files?.[0] || null)}
+                onChange={(e) => {
+                  const f = e.target.files?.[0] || null
+                  void onUpload(f)
+                  e.target.value = ''
+                }}
               />
             </div>
+            {busy && <p style={{ margin: '0.5rem 0 0' }}>Загрузка…</p>}
           </div>
+          {error && (
+            <p className="error" style={{ marginTop: 0 }}>
+              {error}
+            </p>
+          )}
           <ul className="list">
             {session.resumes.map((r) => (
               <li key={r.id}>
@@ -262,8 +281,8 @@ export default function App() {
       <section className="panel" style={{ marginTop: '1rem' }}>
         <h2>3. Запуск</h2>
         <p className="hint">
-          Когда заполнены резюме и таблица, начнётся сбор → hard-фильтр → ATS → запись в вкладки
-          <code> hh_candidates</code> / <code>hh_qualified</code>.
+          Заполните поля и нажмите «Сохранить настройки». Потом — «Начать парсинг».
+          Результат: вкладки <code> hh_candidates</code> / <code>hh_qualified</code>.
         </p>
         {!session.ready && (
           <p className="error">Не хватает: {session.missing.join(', ')}</p>

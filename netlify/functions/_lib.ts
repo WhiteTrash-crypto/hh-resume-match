@@ -5,7 +5,11 @@ import { emptySession, getSession, saveSession } from '../../shared/store'
 
 export const SESSION_COOKIE = 'hrm_sid'
 
-export function json(statusCode: number, body: unknown, extraHeaders: Record<string, string> = {}): HandlerResponse {
+export function json(
+  statusCode: number,
+  body: unknown,
+  extraHeaders: Record<string, string> = {},
+): HandlerResponse {
   return {
     statusCode,
     headers: {
@@ -22,6 +26,20 @@ export function readSessionId(event: HandlerEvent): string | null {
   return cookies[SESSION_COOKIE] || null
 }
 
+function sessionCookie(id: string): string {
+  const secure =
+    process.env.CONTEXT === 'production' ||
+    process.env.CONTEXT === 'deploy-preview' ||
+    process.env.CONTEXT === 'branch-deploy'
+  return serializeCookie(SESSION_COOKIE, id, {
+    httpOnly: true,
+    sameSite: 'lax',
+    path: '/',
+    maxAge: 60 * 60 * 24 * 30,
+    secure,
+  })
+}
+
 export async function requireSession(event: HandlerEvent) {
   let id = readSessionId(event)
   let created = false
@@ -35,41 +53,39 @@ export async function requireSession(event: HandlerEvent) {
     await saveSession(session)
     created = true
   }
-  const headers: Record<string, string> = {}
+  // Always refresh cookie so it sticks across deploys / first response
+  const headers: Record<string, string> = {
+    'Set-Cookie': sessionCookie(session.id),
+  }
   if (created) {
-    headers['Set-Cookie'] = serializeCookie(SESSION_COOKIE, id, {
-      httpOnly: true,
-      sameSite: 'lax',
-      path: '/',
-      maxAge: 60 * 60 * 24 * 30,
-      secure: process.env.NODE_ENV === 'production',
-    })
+    // keep flag for debugging if needed
   }
   return { session, headers }
 }
 
 export function withCors(handler: Handler): Handler {
   return async (event, context) => {
-    if (event.httpMethod === 'OPTIONS') {
-      return {
-        statusCode: 204,
-        headers: {
-          'Access-Control-Allow-Origin': event.headers.origin || '*',
-          'Access-Control-Allow-Credentials': 'true',
-          'Access-Control-Allow-Headers': 'Content-Type',
-          'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
-        },
-        body: '',
-      }
+    const origin = event.headers.origin || event.headers.Origin || '*'
+    const cors = {
+      'Access-Control-Allow-Origin': origin,
+      'Access-Control-Allow-Credentials': 'true',
+      'Access-Control-Allow-Headers': 'Content-Type',
+      'Access-Control-Allow-Methods': 'GET,POST,DELETE,OPTIONS',
     }
-    const res = await handler(event, context)
-    return {
-      ...res,
-      headers: {
-        ...(res?.headers || {}),
-        'Access-Control-Allow-Origin': event.headers.origin || '*',
-        'Access-Control-Allow-Credentials': 'true',
-      },
+    if (event.httpMethod === 'OPTIONS') {
+      return { statusCode: 204, headers: cors, body: '' }
+    }
+    try {
+      const res = await handler(event, context)
+      return {
+        ...res,
+        headers: {
+          ...cors,
+          ...(res?.headers || {}),
+        },
+      }
+    } catch (e) {
+      return json(500, { error: e instanceof Error ? e.message : String(e) }, cors)
     }
   }
 }

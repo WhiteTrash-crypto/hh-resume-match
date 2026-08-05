@@ -1,37 +1,12 @@
 import type { Handler } from '@netlify/functions'
-import Busboy from 'busboy'
-import { Readable } from 'node:stream'
-import pdf from 'pdf-parse'
+import { createRequire } from 'node:module'
 import { v4 as uuid } from 'uuid'
 import { saveSession } from '../../shared/store'
 import { json, requireSession, withCors } from './_lib'
 
-function parseMultipart(
-  event: Parameters<Handler>[0],
-): Promise<{ filename: string; buffer: Buffer }> {
-  return new Promise((resolve, reject) => {
-    const contentType = event.headers['content-type'] || event.headers['Content-Type']
-    if (!contentType) {
-      reject(new Error('Content-Type отсутствует'))
-      return
-    }
-    const bb = Busboy({ headers: { 'content-type': contentType } })
-    let filename = 'resume.pdf'
-    const chunks: Buffer[] = []
-
-    bb.on('file', (_name, file, info) => {
-      filename = info.filename || filename
-      file.on('data', (d: Buffer) => chunks.push(d))
-    })
-    bb.on('error', reject)
-    bb.on('finish', () => resolve({ filename, buffer: Buffer.concat(chunks) }))
-
-    const body = event.isBase64Encoded
-      ? Buffer.from(event.body || '', 'base64')
-      : Buffer.from(event.body || '', 'utf8')
-    Readable.from(body).pipe(bb)
-  })
-}
+const require = createRequire(import.meta.url)
+// pdf-parse is CJS; default import breaks on Netlify esbuild
+const pdfParse = require('pdf-parse') as (buf: Buffer) => Promise<{ text: string }>
 
 const baseHandler: Handler = async (event) => {
   const { session, headers } = await requireSession(event)
@@ -54,18 +29,32 @@ const baseHandler: Handler = async (event) => {
   }
 
   try {
-    const { filename, buffer } = await parseMultipart(event)
+    let body: { filename?: string; data?: string }
+    try {
+      body = JSON.parse(event.body || '{}')
+    } catch {
+      return json(400, { error: 'Ожидался JSON { filename, data }' }, headers)
+    }
+    const filename = (body.filename || 'resume.pdf').trim()
+    const data = body.data || ''
+    if (!data) return json(400, { error: 'Пустой файл' }, headers)
     if (!filename.toLowerCase().endsWith('.pdf')) {
       return json(400, { error: 'Пока поддерживается только PDF' }, headers)
     }
-    if (buffer.length > 8 * 1024 * 1024) {
-      return json(400, { error: 'Файл больше 8 МБ' }, headers)
+
+    const b64 = data.includes(',') ? data.split(',')[1] : data
+    const buffer = Buffer.from(b64, 'base64')
+    if (!buffer.length) return json(400, { error: 'Не удалось прочитать файл' }, headers)
+    if (buffer.length > 4.5 * 1024 * 1024) {
+      return json(400, { error: 'Файл больше 4.5 МБ (лимит Netlify Functions)' }, headers)
     }
-    const parsed = await pdf(buffer)
+
+    const parsed = await pdfParse(buffer)
     const text = (parsed.text || '').trim()
     if (text.length < 80) {
       return json(400, { error: 'Не удалось извлечь текст из PDF' }, headers)
     }
+
     const id = uuid()
     session.resumes.push({
       id,
