@@ -9,8 +9,8 @@
   --warn: #ffb454;
   --danger: #ff6b7a;
   --radius: 18px;
-  --font-display: 'Syne', sans-serif;
-  --font-body: 'DM Sans', sans-serif;
+  --font-display: 'Unbounded', sans-serif;
+  --font-body: 'Manrope', sans-serif;
   color: var(--ink);
   background: var(--bg);
   font-family: var(--font-body);
