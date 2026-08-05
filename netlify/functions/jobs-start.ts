@@ -1,5 +1,5 @@
 import { v4 as uuid } from 'uuid'
-import { startHhCollect } from '../../shared/hh'
+import { parseSearchQueries, startHhCollect } from '../../shared/hh'
 import { isReadyToParse, saveSession } from '../../shared/store'
 import { json, withApi } from './_lib'
 
@@ -19,18 +19,28 @@ export default withApi(async (req, session) => {
     return json({ error: 'Уже выполняется задача', job: session.job }, { status: 409 })
   }
 
+  const queries = parseSearchQueries(session.config.query || '')
+  if (!queries.length) {
+    return json({ error: 'Укажите хотя бы один поисковый ключ' }, { status: 400 })
+  }
+
   try {
-    const { runId } = await startHhCollect({
+    const { runIds, pagesPerQuery } = await startHhCollect({
       query: session.config.query!,
       remoteOnly: session.config.remoteOnly !== false,
       periodDays: session.config.periodDays || 7,
       maxPages: session.config.maxPages || 1,
     })
+    const plan = queries
+      .map((q, i) => `${q}→${pagesPerQuery[i] || 0}стр`)
+      .join(', ')
     session.job = {
       id: uuid(),
       status: 'collecting',
-      message: 'Сбор вакансий с hh.ru…',
-      apifyRunId: runId,
+      message: `Сбор hh.ru (${queries.length} ключ., бюджет ${session.config.maxPages || 1} стр.): ${plan}`,
+      apifyRunId: runIds[0],
+      apifyRunIds: runIds,
+      queries,
       startedAt: new Date().toISOString(),
     }
     session.pipeline = undefined

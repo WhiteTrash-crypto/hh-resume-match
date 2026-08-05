@@ -11,16 +11,21 @@ const MAX_SCORE = 25
 
 export default withApi(async (_req, session) => {
   const job = session.job
+  const runIds = job.apifyRunIds?.length
+    ? job.apifyRunIds
+    : job.apifyRunId
+      ? [job.apifyRunId]
+      : []
 
-  if (!job.apifyRunId || job.status === 'idle' || job.status === 'done' || job.status === 'error') {
+  if (!runIds.length || job.status === 'idle' || job.status === 'done' || job.status === 'error') {
     return json({ job })
   }
 
   try {
     if (job.status === 'collecting') {
-      const { status, items } = await getHhCollectStatus(job.apifyRunId)
-      if (!['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(status)) {
-        job.message = `Сбор вакансий: ${status}`
+      const { status, items, done, total } = await getHhCollectStatus(runIds)
+      if (status === 'RUNNING') {
+        job.message = `Сбор вакансий: ${done}/${total} запусков готово`
         await saveSession(session)
         return json({ job })
       }

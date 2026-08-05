@@ -91,7 +91,11 @@ export function isReadyToParse(session: SessionData): { ok: boolean; missing: st
   const missing: string[] = []
   if (!session.resumes.length) missing.push('резюме')
   if (!session.config.sheetId) missing.push('ссылка на Google Sheet')
-  if (!session.config.query?.trim()) missing.push('поисковый запрос')
+  const q = session.config.query?.trim() || ''
+  if (!q) missing.push('поисковый запрос')
+  else if (q.split(',').map((s) => s.trim()).filter(Boolean).length > 5) {
+    missing.push('не больше 5 ключей')
+  }
   return { ok: missing.length === 0, missing }
 }
 

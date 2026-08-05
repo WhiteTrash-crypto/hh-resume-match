@@ -36,6 +36,35 @@ function buildSearchUrl(opts: {
   return `https://hh.ru/search/vacancy?${params.toString()}`
 }
 
+/** Split comma-separated keys, max 5 unique non-empty. */
+export function parseSearchQueries(raw: string): string[] {
+  const seen = new Set<string>()
+  const out: string[] = []
+  for (const part of (raw || '').split(',')) {
+    const q = part.trim().replace(/\s+/g, ' ')
+    if (!q) continue
+    const key = q.toLowerCase()
+    if (seen.has(key)) continue
+    seen.add(key)
+    out.push(q)
+    if (out.length >= 5) break
+  }
+  return out
+}
+
+/**
+ * Split a fixed page budget across N queries.
+ * Sum(pages) === totalPages always — never N× more work for N keys.
+ */
+export function distributePageBudget(totalPages: number, queryCount: number): number[] {
+  const n = Math.max(0, queryCount)
+  if (n === 0) return []
+  const total = Math.max(1, Math.min(6, Math.floor(totalPages) || 1))
+  const base = Math.floor(total / n)
+  const rem = total % n
+  return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0))
+}
+
 function stripHtml(html: string): string {
   return html
     .replace(/<br\s*\/?>/gi, '\n')
@@ -124,54 +153,108 @@ export async function startHhCollect(opts: {
   remoteOnly: boolean
   periodDays: number
   maxPages: number
-}): Promise<{ runId: string }> {
+}): Promise<{ runIds: string[]; queries: string[]; pagesPerQuery: number[] }> {
   const token = process.env.APIFY_TOKEN
   if (!token) throw new Error('APIFY_TOKEN не задан')
   const actor = process.env.APIFY_ACTOR
   if (!actor) throw new Error('APIFY_ACTOR не задан')
+
+  const queries = parseSearchQueries(opts.query)
+  if (!queries.length) throw new Error('Укажите хотя бы один поисковый ключ')
+
+  const pagesPerQuery = distributePageBudget(opts.maxPages || 1, queries.length)
   const client = new ApifyClient({ token })
-  const searchUrl = buildSearchUrl(opts)
-  const run = await client.actor(actor).start({
-    mode: 'url',
-    urls: [searchUrl],
-    maxPages: opts.maxPages,
-    fetchDetails: true,
-  })
-  if (!run?.id) throw new Error('Не удалось запустить Apify')
-  return { runId: run.id }
+  const runIds: string[] = []
+
+  // One Apify run per key that got ≥1 page from the shared budget
+  for (let i = 0; i < queries.length; i++) {
+    const pages = pagesPerQuery[i]
+    if (pages <= 0) continue
+    const searchUrl = buildSearchUrl({
+      query: queries[i],
+      remoteOnly: opts.remoteOnly,
+      periodDays: opts.periodDays,
+    })
+    const run = await client.actor(actor).start({
+      mode: 'url',
+      urls: [searchUrl],
+      maxPages: pages,
+      fetchDetails: true,
+    })
+    if (!run?.id) throw new Error(`Не удалось запустить Apify для «${queries[i]}»`)
+    runIds.push(run.id)
+  }
+
+  if (!runIds.length) {
+    throw new Error('Бюджет страниц слишком мал для выбранных ключей')
+  }
+
+  return { runIds, queries, pagesPerQuery }
 }
 
-export async function getHhCollectStatus(runId: string): Promise<{
+export async function getHhCollectStatus(runIds: string[]): Promise<{
   status: string
   items?: Vacancy[]
+  done: number
+  total: number
 }> {
   const token = process.env.APIFY_TOKEN
   if (!token) throw new Error('APIFY_TOKEN не задан')
   const client = new ApifyClient({ token })
-  const run = await client.run(runId).get()
-  if (!run) return { status: 'UNKNOWN' }
-  const status = String(run.status || 'UNKNOWN')
-  if (status !== 'SUCCEEDED') return { status }
+  const ids = runIds.filter(Boolean)
+  if (!ids.length) return { status: 'UNKNOWN', done: 0, total: 0 }
 
-  const datasetId = run.defaultDatasetId
-  if (!datasetId) return { status, items: [] }
+  const statuses: string[] = []
+  const datasetIds: string[] = []
+
+  for (const runId of ids) {
+    const run = await client.run(runId).get()
+    if (!run) {
+      statuses.push('UNKNOWN')
+      continue
+    }
+    const st = String(run.status || 'UNKNOWN')
+    statuses.push(st)
+    if (st === 'SUCCEEDED' && run.defaultDatasetId) {
+      datasetIds.push(run.defaultDatasetId)
+    }
+  }
+
+  const total = ids.length
+  const terminal = new Set(['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'])
+  const done = statuses.filter((s) => terminal.has(s)).length
+  const failed = statuses.filter((s) =>
+    ['FAILED', 'ABORTED', 'TIMED-OUT'].includes(s),
+  ).length
+  const allDone = done === total
+
+  if (!allDone) {
+    return { status: 'RUNNING', done, total }
+  }
+  if (failed === total) {
+    return { status: 'FAILED', done, total }
+  }
+
   const items: Vacancy[] = []
   const seen = new Set<string>()
-  const dataset = client.dataset(datasetId)
-  let offset = 0
-  const limit = 100
-  for (;;) {
-    const page = await dataset.listItems({ offset, limit })
-    const batch = page.items || []
-    for (const raw of batch) {
-      const v = normalizeVacancy(raw as Record<string, unknown>)
-      if (!v || seen.has(v.vacancyId)) continue
-      seen.add(v.vacancyId)
-      items.push(v)
+  for (const datasetId of datasetIds) {
+    const dataset = client.dataset(datasetId)
+    let offset = 0
+    const limit = 100
+    for (;;) {
+      const page = await dataset.listItems({ offset, limit })
+      const batch = page.items || []
+      for (const raw of batch) {
+        const v = normalizeVacancy(raw as Record<string, unknown>)
+        if (!v || seen.has(v.vacancyId)) continue
+        seen.add(v.vacancyId)
+        items.push(v)
+      }
+      if (batch.length < limit) break
+      offset += batch.length
+      if (offset > 2000) break
     }
-    if (batch.length < limit) break
-    offset += batch.length
-    if (offset > 2000) break
   }
-  return { status, items }
+
+  return { status: 'SUCCEEDED', items, done, total }
 }

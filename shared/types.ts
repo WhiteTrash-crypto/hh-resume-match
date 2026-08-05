@@ -25,7 +25,10 @@ export type JobState = {
     | 'done'
     | 'error'
   message: string
+  /** @deprecated use apifyRunIds */
   apifyRunId?: string
+  apifyRunIds?: string[]
+  queries?: string[]
   startedAt?: string
   finishedAt?: string
   stats?: {

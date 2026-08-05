@@ -252,14 +252,18 @@ export default function App() {
               />
             </label>
             <label>
-              Поисковый запрос на hh.ru
+              Поисковые ключи на hh.ru (через запятую, макс. 5)
               <input
                 type="text"
+                placeholder="продакт-менеджер, product manager, проджект"
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 required
               />
             </label>
+            <p className="hint" style={{ marginTop: '-0.4rem' }}>
+              Общий бюджет страниц делится между ключами — 5 ключей не дают в 5 раз больше запросов.
+            </p>
             <label className="check">
               <input
                 type="checkbox"
