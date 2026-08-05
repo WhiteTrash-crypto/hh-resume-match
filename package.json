@@ -1,0 +1,38 @@
+{
+  "name": "hh-resume-match",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "netlify dev",
+    "dev:vite": "vite",
+    "build": "tsc -b && vite build",
+    "preview": "vite preview",
+    "lint": "tsc -b --pretty false"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^9.1.2",
+    "@netlify/functions": "^3.0.4",
+    "apify-client": "^2.12.1",
+    "busboy": "^1.6.0",
+    "cookie": "^1.0.2",
+    "googleapis": "^148.0.0",
+    "openai": "^4.96.0",
+    "pdf-parse": "^1.1.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "uuid": "^11.1.0"
+  },
+  "devDependencies": {
+    "@types/busboy": "^1.5.4",
+    "@types/cookie": "^0.6.0",
+    "@types/pdf-parse": "^1.1.4",
+    "@types/react": "^19.0.10",
+    "@types/react-dom": "^19.0.4",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^4.3.4",
+    "netlify-cli": "^19.0.0",
+    "typescript": "~5.7.2",
+    "vite": "^6.2.0"
+  }
+}
