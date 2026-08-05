@@ -1,21 +1,19 @@
-import type { Handler } from '@netlify/functions'
 import { scoreVacancy } from '../../shared/ats'
 import { applyHardFilters } from '../../shared/filters'
 import { getHhCollectStatus } from '../../shared/hh'
 import { writeResults } from '../../shared/sheets'
 import { saveSession } from '../../shared/store'
 import type { AtsResult, Vacancy } from '../../shared/types'
-import { json, requireSession, withCors } from './_lib'
+import { json, withApi } from './_lib'
 
 const SCORE_BATCH = 3
 const MAX_SCORE = 25
 
-const baseHandler: Handler = async (event) => {
-  const { session, headers } = await requireSession(event)
+export default withApi(async (_req, session) => {
   const job = session.job
 
   if (!job.apifyRunId || job.status === 'idle' || job.status === 'done' || job.status === 'error') {
-    return json(200, { job }, headers)
+    return json({ job })
   }
 
   try {
@@ -24,7 +22,7 @@ const baseHandler: Handler = async (event) => {
       if (!['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'].includes(status)) {
         job.message = `Сбор вакансий: ${status}`
         await saveSession(session)
-        return json(200, { job }, headers)
+        return json({ job })
       }
       if (status !== 'SUCCEEDED' || !items) {
         job.status = 'error'
@@ -32,7 +30,7 @@ const baseHandler: Handler = async (event) => {
         job.message = 'Ошибка сбора'
         job.finishedAt = new Date().toISOString()
         await saveSession(session)
-        return json(200, { job }, headers)
+        return json({ job })
       }
 
       const filtered: Vacancy[] = []
@@ -51,7 +49,7 @@ const baseHandler: Handler = async (event) => {
         writtenCandidates: 0,
       }
       await saveSession(session)
-      return json(200, { job }, headers)
+      return json({ job })
     }
 
     if (job.status === 'scoring') {
@@ -60,7 +58,7 @@ const baseHandler: Handler = async (event) => {
         job.status = 'error'
         job.error = 'Нет данных пайплайна'
         await saveSession(session)
-        return json(200, { job }, headers)
+        return json({ job })
       }
 
       const resumeText = session.resumes
@@ -70,8 +68,7 @@ const baseHandler: Handler = async (event) => {
 
       const end = Math.min(pipe.cursor + SCORE_BATCH, pipe.vacancies.length)
       for (let i = pipe.cursor; i < end; i++) {
-        const score = await scoreVacancy(resumeText, pipe.vacancies[i])
-        pipe.scores.push(score)
+        pipe.scores.push(await scoreVacancy(resumeText, pipe.vacancies[i]))
       }
       pipe.cursor = end
       job.stats = {
@@ -88,13 +85,12 @@ const baseHandler: Handler = async (event) => {
 
       if (pipe.cursor < pipe.vacancies.length) {
         await saveSession(session)
-        return json(200, { job }, headers)
+        return json({ job })
       }
 
       job.status = 'writing'
       job.message = 'Пишем в Google Sheet…'
       await saveSession(session)
-      // fall through on next poll — or write now
     }
 
     if (job.status === 'writing') {
@@ -103,7 +99,7 @@ const baseHandler: Handler = async (event) => {
         job.status = 'error'
         job.error = 'Нет данных для записи'
         await saveSession(session)
-        return json(200, { job }, headers)
+        return json({ job })
       }
 
       const scoreMap = new Map(pipe.scores.map((s) => [s.vacancyId, s]))
@@ -131,18 +127,16 @@ const baseHandler: Handler = async (event) => {
       }
       session.pipeline = undefined
       await saveSession(session)
-      return json(200, { job }, headers)
+      return json({ job })
     }
 
-    return json(200, { job }, headers)
+    return json({ job })
   } catch (e) {
     job.status = 'error'
     job.error = e instanceof Error ? e.message : String(e)
     job.message = 'Ошибка обработки'
     job.finishedAt = new Date().toISOString()
     await saveSession(session)
-    return json(200, { job }, headers)
+    return json({ job })
   }
-}
-
-export const handler = withCors(baseHandler)
+})

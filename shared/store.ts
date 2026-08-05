@@ -1,25 +1,19 @@
-import { connectLambda, getStore } from '@netlify/blobs'
+import { getStore } from '@netlify/blobs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import path from 'node:path'
 import type { SessionData } from './types'
 
 const LOCAL_DIR = path.join(process.cwd(), '.data', 'sessions')
 
-let blobsReady = false
+/** Set true in Netlify Functions 2.0 handlers (Blobs auto-configured). */
+let forceBlobs = false
 
-/** Call once per Lambda invocation with the function event (classic Functions). */
-export function initBlobsFromEvent(event: unknown): void {
-  if (!event) return
-  try {
-    connectLambda(event as Parameters<typeof connectLambda>[0])
-    blobsReady = true
-  } catch (e) {
-    console.warn('connectLambda failed (ok in pure local fs mode)', e)
-  }
+export function setBlobsMode(enabled: boolean): void {
+  forceBlobs = enabled
 }
 
 function useLocal(): boolean {
-  if (blobsReady) return false
+  if (forceBlobs) return false
   if (process.env.AWS_LAMBDA_FUNCTION_NAME) return false
   if (process.env.NETLIFY === 'true' && process.env.NETLIFY_DEV !== 'true') return false
   return true
@@ -50,7 +44,7 @@ export async function getSession(id: string): Promise<SessionData | null> {
   } catch (e) {
     console.error('blobs get failed', e)
     throw new Error(
-      'Не удалось прочитать сессию (Netlify Blobs). Передеплойте сайт после обновления.',
+      'Не удалось прочитать сессию (Netlify Blobs). Проверьте деплой Functions 2.0.',
     )
   }
 }
@@ -66,7 +60,7 @@ export async function saveSession(data: SessionData): Promise<void> {
   } catch (e) {
     console.error('blobs set failed', e)
     throw new Error(
-      'Не удалось сохранить сессию (Netlify Blobs). Передеплойте сайт после обновления.',
+      'Не удалось сохранить сессию (Netlify Blobs). Проверьте деплой Functions 2.0.',
     )
   }
 }

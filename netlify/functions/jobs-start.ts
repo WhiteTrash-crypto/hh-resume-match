@@ -1,18 +1,22 @@
-import type { Handler } from '@netlify/functions'
 import { v4 as uuid } from 'uuid'
 import { startHhCollect } from '../../shared/hh'
 import { isReadyToParse, saveSession } from '../../shared/store'
-import { json, requireSession, withCors } from './_lib'
+import { json, withApi } from './_lib'
 
-const baseHandler: Handler = async (event) => {
-  if (event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' })
-  const { session, headers } = await requireSession(event)
+export default withApi(async (req, session) => {
+  if (req.method !== 'POST') {
+    return json({ error: 'Method not allowed' }, { status: 405 })
+  }
+
   const readiness = isReadyToParse(session)
   if (!readiness.ok) {
-    return json(400, { error: 'Не хватает полей', missing: readiness.missing }, headers)
+    return json(
+      { error: 'Не хватает полей', missing: readiness.missing },
+      { status: 400 },
+    )
   }
   if (['collecting', 'filtering', 'scoring', 'writing'].includes(session.job.status)) {
-    return json(409, { error: 'Уже выполняется задача', job: session.job }, headers)
+    return json({ error: 'Уже выполняется задача', job: session.job }, { status: 409 })
   }
 
   try {
@@ -31,7 +35,7 @@ const baseHandler: Handler = async (event) => {
     }
     session.pipeline = undefined
     await saveSession(session)
-    return json(200, { job: session.job }, headers)
+    return json({ job: session.job })
   } catch (e) {
     session.job = {
       id: uuid(),
@@ -40,8 +44,6 @@ const baseHandler: Handler = async (event) => {
       error: e instanceof Error ? e.message : String(e),
     }
     await saveSession(session)
-    return json(500, { error: session.job.error, job: session.job }, headers)
+    return json({ error: session.job.error, job: session.job }, { status: 500 })
   }
-}
-
-export const handler = withCors(baseHandler)
+})

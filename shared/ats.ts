@@ -33,14 +33,90 @@ ${vacancy.content.slice(0, 8000)}
 {"score":0,"domainTier":"A|B|C","role":"...","workMode":"remote|hybrid|office|unknown","reason":"...","redFlags":"..."}`
 }
 
+/** Simple keyword overlap scorer when OPENAI_API_KEY is missing. */
+function heuristicScore(resumeText: string, vacancy: Vacancy): AtsResult {
+  const resume = resumeText.toLowerCase()
+  const blob = `${vacancy.title}\n${vacancy.content}`.toLowerCase()
+  const title = vacancy.title.toLowerCase()
+
+  let score = 40
+  const redFlags: string[] = []
+
+  if (/senior|staff|principal|lead product|head of product|директор по продукту|ведущий/.test(title)) {
+    score -= 25
+    redFlags.push('seniority')
+  }
+
+  const tokens = [
+    'product',
+    'продакт',
+    'project',
+    'проджект',
+    'roadmap',
+    'analytics',
+    'аналитик',
+    'а/b',
+    'jira',
+    'scrum',
+    'web3',
+    'crypto',
+    'крипто',
+    'fintech',
+    'финтех',
+    'edtech',
+    'saas',
+    'b2b',
+    'retention',
+    'funnel',
+    'воронк',
+  ]
+  let hits = 0
+  for (const t of tokens) {
+    if (resume.includes(t) && blob.includes(t)) {
+      hits += 1
+      score += 4
+    }
+  }
+
+  let domainTier: 'A' | 'B' | 'C' = 'C'
+  if (/web3|crypto|крипто|fintech|финтех|edtech|образован/.test(blob)) {
+    domainTier = 'A'
+    score += 8
+  } else if (/saas|b2b|product|продакт|project|проджект/.test(blob)) {
+    domainTier = 'B'
+    score += 4
+  }
+
+  let workMode = 'unknown'
+  if (/remote|удал/.test(blob)) workMode = 'remote'
+  else if (/hybrid|гибрид/.test(blob)) workMode = 'hybrid'
+  else if (/офис|office|полный день/.test(blob)) workMode = 'office'
+
+  if (workMode === 'remote' || workMode === 'hybrid') score += 5
+
+  score = Math.max(0, Math.min(100, score))
+
+  return {
+    vacancyId: vacancy.vacancyId,
+    score,
+    domainTier,
+    role: vacancy.title,
+    workMode,
+    reason: `Эвристический ATS (без OpenAI): пересечение навыков ${hits}, tier ${domainTier}.`,
+    redFlags: redFlags.join(', '),
+  }
+}
+
 export async function scoreVacancy(
   resumeText: string,
   vacancy: Vacancy,
 ): Promise<AtsResult> {
-  const apiKey = process.env.OPENAI_API_KEY
-  if (!apiKey) throw new Error('OPENAI_API_KEY не задан')
-  const model = process.env.OPENAI_MODEL
-  if (!model) throw new Error('OPENAI_MODEL не задан')
+  const apiKey = process.env.OPENAI_API_KEY?.trim()
+  if (!apiKey) {
+    return heuristicScore(resumeText, vacancy)
+  }
+
+  const model = process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini'
   const client = new OpenAI({ apiKey })
   const completion = await client.chat.completions.create({
     model,

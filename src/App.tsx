@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
+import { extractPdfText } from './pdfText'
 
 type Resume = { id: string; filename: string; uploadedAt: string; chars: number }
 type Job = {
@@ -104,18 +105,16 @@ export default function App() {
     setBusy(true)
     setError('')
     try {
-      const data = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader()
-        reader.onload = () => resolve(String(reader.result || ''))
-        reader.onerror = () => reject(new Error('Не удалось прочитать файл'))
-        reader.readAsDataURL(file)
-      })
+      const text = await extractPdfText(file)
+      if (text.length < 80) {
+        throw new Error('В PDF слишком мало текста (нужно ≥ 80 символов)')
+      }
       const result = await api<{ resumes: Resume[] }>('resumes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: file.name, data }),
+        body: JSON.stringify({ filename: file.name, text }),
       })
-      setSession((s) => ({ ...s, resumes: result.resumes, ready: false }))
+      setSession((s) => ({ ...s, resumes: result.resumes }))
       await refresh()
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Ошибка загрузки')

@@ -17,7 +17,6 @@
 [functions]
   node_bundler = "esbuild"
   included_files = ["shared/**"]
-  external_node_modules = ["pdf-parse"]
 
 [[redirects]]
   from = "/api/*"

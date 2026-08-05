@@ -1,13 +1,12 @@
-import type { Handler } from '@netlify/functions'
 import { extractSheetId, isReadyToParse, saveSession } from '../../shared/store'
 import { verifySheetAccess } from '../../shared/sheets'
-import { json, requireSession, withCors } from './_lib'
+import { json, withApi } from './_lib'
 
-const baseHandler: Handler = async (event) => {
-  if (event.httpMethod !== 'POST') {
-    return json(405, { error: 'Method not allowed' })
+export default withApi(async (req, session) => {
+  if (req.method !== 'POST') {
+    return json({ error: 'Method not allowed' }, { status: 405 })
   }
-  const { session, headers } = await requireSession(event)
+
   let body: {
     sheetUrl?: string
     query?: string
@@ -16,26 +15,25 @@ const baseHandler: Handler = async (event) => {
     maxPages?: number
   }
   try {
-    body = JSON.parse(event.body || '{}')
+    body = await req.json()
   } catch {
-    return json(400, { error: 'Некорректный JSON' }, headers)
+    return json({ error: 'Некорректный JSON' }, { status: 400 })
   }
 
   if (body.sheetUrl !== undefined) {
     const sheetId = extractSheetId(body.sheetUrl)
     if (!sheetId) {
-      return json(400, { error: 'Не удалось разобрать ссылку на Google Sheet' }, headers)
+      return json({ error: 'Не удалось разобрать ссылку на Google Sheet' }, { status: 400 })
     }
     try {
       await verifySheetAccess(sheetId)
     } catch {
       return json(
-        400,
         {
           error:
             'Нет доступа к таблице. Расшарьте её на service account как Редактор и попробуйте снова.',
         },
-        headers,
+        { status: 400 },
       )
     }
     session.config.sheetUrl = body.sheetUrl.trim()
@@ -53,15 +51,9 @@ const baseHandler: Handler = async (event) => {
 
   await saveSession(session)
   const readiness = isReadyToParse(session)
-  return json(
-    200,
-    {
-      config: session.config,
-      ready: readiness.ok,
-      missing: readiness.missing,
-    },
-    headers,
-  )
-}
-
-export const handler = withCors(baseHandler)
+  return json({
+    config: session.config,
+    ready: readiness.ok,
+    missing: readiness.missing,
+  })
+})
