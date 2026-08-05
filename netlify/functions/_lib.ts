@@ -1,7 +1,12 @@
 import type { Handler, HandlerEvent, HandlerResponse } from '@netlify/functions'
 import { parse as parseCookie, serialize as serializeCookie } from 'cookie'
 import { v4 as uuid } from 'uuid'
-import { emptySession, getSession, saveSession } from '../../shared/store'
+import {
+  emptySession,
+  getSession,
+  initBlobsFromEvent,
+  saveSession,
+} from '../../shared/store'
 
 export const SESSION_COOKIE = 'hrm_sid'
 
@@ -41,26 +46,24 @@ function sessionCookie(id: string): string {
 }
 
 export async function requireSession(event: HandlerEvent) {
+  // Required for Netlify Blobs in classic (Lambda) Functions
+  initBlobsFromEvent(event)
+
   let id = readSessionId(event)
-  let created = false
-  if (!id) {
-    id = uuid()
-    created = true
-  }
+  if (!id) id = uuid()
+
   let session = await getSession(id)
   if (!session) {
     session = emptySession(id)
     await saveSession(session)
-    created = true
   }
-  // Always refresh cookie so it sticks across deploys / first response
-  const headers: Record<string, string> = {
-    'Set-Cookie': sessionCookie(session.id),
+
+  return {
+    session,
+    headers: {
+      'Set-Cookie': sessionCookie(session.id),
+    },
   }
-  if (created) {
-    // keep flag for debugging if needed
-  }
-  return { session, headers }
 }
 
 export function withCors(handler: Handler): Handler {
@@ -76,6 +79,7 @@ export function withCors(handler: Handler): Handler {
       return { statusCode: 204, headers: cors, body: '' }
     }
     try {
+      initBlobsFromEvent(event)
       const res = await handler(event, context)
       return {
         ...res,
