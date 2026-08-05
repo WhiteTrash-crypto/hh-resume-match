@@ -157,11 +157,21 @@ export async function getHhCollectStatus(runId: string): Promise<{
   if (!datasetId) return { status, items: [] }
   const items: Vacancy[] = []
   const seen = new Set<string>()
-  for await (const raw of client.dataset(datasetId).iterateItems()) {
-    const v = normalizeVacancy(raw as Record<string, unknown>)
-    if (!v || seen.has(v.vacancyId)) continue
-    seen.add(v.vacancyId)
-    items.push(v)
+  const dataset = client.dataset(datasetId)
+  let offset = 0
+  const limit = 100
+  for (;;) {
+    const page = await dataset.listItems({ offset, limit })
+    const batch = page.items || []
+    for (const raw of batch) {
+      const v = normalizeVacancy(raw as Record<string, unknown>)
+      if (!v || seen.has(v.vacancyId)) continue
+      seen.add(v.vacancyId)
+      items.push(v)
+    }
+    if (batch.length < limit) break
+    offset += batch.length
+    if (offset > 2000) break
   }
   return { status, items }
 }
