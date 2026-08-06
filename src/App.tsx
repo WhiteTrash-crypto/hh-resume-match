@@ -1,5 +1,4 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
 import { extractPdfText } from './pdfText'
 
 type Resume = { id: string; filename: string; uploadedAt: string; chars: number }
@@ -174,30 +173,6 @@ export default function App() {
     }
   }
 
-  async function onSaveConfig(e: FormEvent) {
-    e.preventDefault()
-    setBusy(true)
-    setError('')
-    try {
-      assertClientValid()
-      await api('config', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          sheetUrl,
-          query,
-          remoteOnly,
-          periodDays: 7,
-        }),
-      })
-      await refresh()
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка сохранения')
-    } finally {
-      setBusy(false)
-    }
-  }
-
   async function onStart() {
     setBusy(true)
     setError('')
@@ -290,7 +265,7 @@ export default function App() {
             Создайте таблицу и выдайте права Редактор на наш service account:
           </p>
           <div className="sa-box mono">{session.saEmail}</div>
-          <form onSubmit={onSaveConfig} noValidate>
+          <div>
             <label>
               Ссылка на таблицу
               <input
@@ -335,22 +310,12 @@ export default function App() {
               />
               Только удалёнка
             </label>
-            <div className="row">
-              <button className="btn ghost" type="submit" disabled={busy || queryTooMany}>
-                Сохранить настройки
-              </button>
-            </div>
-          </form>
+          </div>
         </section>
       </div>
 
       <section className="panel" style={{ marginTop: '1rem' }}>
         <h2>3. Запуск</h2>
-        <p className="hint">
-          Заполните поля и нажмите «Сохранить настройки». Потом — «Начать парсинг».
-          Бюджет вакансий: 1 ключ → 100, 2 → 120, 3 → 150, 4 → 200, 5 → 250.
-          Результат: вкладки <code> hh_candidates</code> / <code>hh_qualified</code>.
-        </p>
         {!formValid && (
           <p className="error">
             Не хватает:{' '}
