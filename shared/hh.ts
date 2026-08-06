@@ -4,6 +4,7 @@ import {
   pagesForVacancyAllotment,
   vacancyBudgetForKeyCount,
 } from './budget'
+import { DEFAULT_AREA_ID, resolveRegions } from './regions'
 import type { Vacancy } from './types'
 
 const EXPERIENCE_LABELS: Record<string, string> = {
@@ -26,14 +27,18 @@ function buildSearchUrl(opts: {
   query: string
   remoteOnly: boolean
   periodDays: number
+  areaIds?: string[]
 }): string {
   const params = new URLSearchParams()
   params.set('text', opts.query)
   params.set('search_period', String(opts.periodDays))
   params.set('order_by', 'publication_time')
   params.set('items_on_page', '50')
-  // Russia-wide search driven only by the user's text keys (no hardcoded roles).
-  params.append('area', '113')
+  const areas =
+    opts.areaIds?.filter(Boolean).length
+      ? [...new Set(opts.areaIds.filter(Boolean))]
+      : [DEFAULT_AREA_ID]
+  for (const area of areas) params.append('area', area)
   if (opts.remoteOnly) params.append('schedule', 'remote')
   return `https://hh.ru/search/vacancy?${params.toString()}`
 }
@@ -154,6 +159,8 @@ export async function startHhCollect(opts: {
   query: string
   remoteOnly: boolean
   periodDays: number
+  /** Comma-separated region names; empty → all Russia */
+  regions?: string
   /** Optional override; by default derived from key count. */
   vacancyBudget?: number
 }): Promise<{
@@ -162,6 +169,8 @@ export async function startHhCollect(opts: {
   pagesPerQuery: number[]
   vacanciesPerQuery: number[]
   vacancyBudget: number
+  areaIds: string[]
+  regionsResolved: { input: string; id: string; name: string }[]
 }> {
   const token = process.env.APIFY_TOKEN
   if (!token) throw new Error('APIFY_TOKEN не задан')
@@ -170,6 +179,18 @@ export async function startHhCollect(opts: {
 
   const queries = parseSearchQueries(opts.query)
   if (!queries.length) throw new Error('Укажите хотя бы один поисковый ключ')
+
+  const regionResult = resolveRegions(opts.regions || '')
+  if ((opts.regions || '').trim() && regionResult.unresolved.length) {
+    throw new Error(
+      `Не удалось распознать регион(ы): ${regionResult.unresolved.join(', ')}. ` +
+        'Примеры: Москва, СПб, Питер, Казань, Екатеринбург',
+    )
+  }
+  if ((opts.regions || '').trim() && !regionResult.areaIds.length) {
+    throw new Error('Укажите хотя бы один понятный регион или оставьте поле пустым (вся Россия)')
+  }
+  const areaIds = regionResult.areaIds.length ? regionResult.areaIds : [DEFAULT_AREA_ID]
 
   const vacancyBudget =
     opts.vacancyBudget && opts.vacancyBudget > 0
@@ -188,6 +209,7 @@ export async function startHhCollect(opts: {
       query: queries[i],
       remoteOnly: opts.remoteOnly,
       periodDays: opts.periodDays,
+      areaIds,
     })
     const run = await client.actor(actor).start({
       mode: 'url',
@@ -203,7 +225,15 @@ export async function startHhCollect(opts: {
     throw new Error('Бюджет страниц слишком мал для выбранных ключей')
   }
 
-  return { runIds, queries, pagesPerQuery, vacanciesPerQuery, vacancyBudget }
+  return {
+    runIds,
+    queries,
+    pagesPerQuery,
+    vacanciesPerQuery,
+    vacancyBudget,
+    areaIds,
+    regionsResolved: regionResult.resolved,
+  }
 }
 
 export async function getHhCollectStatus(runIds: string[]): Promise<{

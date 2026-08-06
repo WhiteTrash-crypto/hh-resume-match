@@ -75,6 +75,7 @@ export function emptySession(id: string): SessionData {
     resumeTexts: {},
     config: {
       query: '',
+      regions: '',
       remoteOnly: true,
       periodDays: 7,
       maxPages: 0,

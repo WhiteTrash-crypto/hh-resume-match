@@ -20,6 +20,7 @@ type SessionPayload = {
   config: {
     sheetUrl: string
     query: string
+    regions: string
     remoteOnly: boolean
     periodDays: number
     maxPages: number
@@ -37,6 +38,7 @@ const empty: SessionPayload = {
   config: {
     sheetUrl: '',
     query: '',
+    regions: '',
     remoteOnly: true,
     periodDays: 7,
     maxPages: 0,
@@ -79,6 +81,7 @@ export default function App() {
   const [error, setError] = useState('')
   const [sheetUrl, setSheetUrl] = useState('')
   const [query, setQuery] = useState('')
+  const [regions, setRegions] = useState('')
   const [remoteOnly, setRemoteOnly] = useState(true)
   const [sheetTouched, setSheetTouched] = useState(false)
   const [queryTouched, setQueryTouched] = useState(false)
@@ -96,6 +99,7 @@ export default function App() {
     setSession(data)
     setSheetUrl(data.config.sheetUrl || '')
     setQuery(data.config.query || '')
+    setRegions(data.config.regions || '')
     setRemoteOnly(data.config.remoteOnly !== false)
     return data
   }, [])
@@ -184,6 +188,7 @@ export default function App() {
         body: JSON.stringify({
           sheetUrl,
           query,
+          regions,
           remoteOnly,
           periodDays: 7,
         }),
@@ -302,6 +307,15 @@ export default function App() {
             {queryTouched && queryEmpty && (
               <p className="field-error">Укажите хотя бы один ключ</p>
             )}
+            <label>
+              Регионы (необязательно, через запятую)
+              <input
+                type="text"
+                placeholder="Москва, СПб, Казань"
+                value={regions}
+                onChange={(e) => setRegions(e.target.value)}
+              />
+            </label>
             <label className="check">
               <input
                 type="checkbox"

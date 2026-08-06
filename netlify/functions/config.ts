@@ -10,6 +10,7 @@ export default withApi(async (req, session) => {
   let body: {
     sheetUrl?: string
     query?: string
+    regions?: string
     remoteOnly?: boolean
     periodDays?: number
     maxPages?: number
@@ -58,6 +59,20 @@ export default withApi(async (req, session) => {
       )
     }
     session.config.query = trimmed
+  }
+  if (body.regions !== undefined) {
+    const trimmed = body.regions.trim()
+    const parts = trimmed
+      .split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
+    if (parts.length > 8) {
+      return json(
+        { error: 'Не больше 8 регионов (через запятую)' },
+        { status: 400 },
+      )
+    }
+    session.config.regions = trimmed
   }
   if (body.remoteOnly !== undefined) session.config.remoteOnly = Boolean(body.remoteOnly)
   if (body.periodDays !== undefined) {

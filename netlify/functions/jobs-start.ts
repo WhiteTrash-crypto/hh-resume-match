@@ -28,19 +28,26 @@ export default withApi(async (req, session) => {
   const vacancyBudget = vacancyBudgetForKeyCount(queries.length)
 
   try {
-    const { runIds, pagesPerQuery, vacanciesPerQuery } = await startHhCollect({
-      query: session.config.query!,
-      remoteOnly: session.config.remoteOnly !== false,
-      periodDays: session.config.periodDays || 7,
-      vacancyBudget,
-    })
+    const { runIds, pagesPerQuery, vacanciesPerQuery, regionsResolved, areaIds } =
+      await startHhCollect({
+        query: session.config.query!,
+        regions: session.config.regions || '',
+        remoteOnly: session.config.remoteOnly !== false,
+        periodDays: session.config.periodDays || 7,
+        vacancyBudget,
+      })
+
     const plan = queries
       .map((q, i) => `${q}→${vacanciesPerQuery[i] || 0} вак. (~${pagesPerQuery[i] || 0} стр.)`)
+      .join(', ')
+    const regionLabel = regionsResolved
+      .map((r) => r.name)
+      .filter(Boolean)
       .join(', ')
     session.job = {
       id: uuid(),
       status: 'collecting',
-      message: `Сбор hh.ru (${queries.length} ключ., бюджет ${vacancyBudget} вак.): ${plan}`,
+      message: `Сбор hh.ru (${queries.length} ключ., ${regionLabel || 'Россия'}, бюджет ${vacancyBudget} вак., area=${areaIds.join('|')}): ${plan}`,
       apifyRunId: runIds[0],
       apifyRunIds: runIds,
       queries,
