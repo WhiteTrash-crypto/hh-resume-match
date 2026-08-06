@@ -13,13 +13,13 @@
   "dependencies": {
     "@netlify/blobs": "^9.1.2",
     "@netlify/functions": "^3.0.4",
-    "apify-client": "^2.12.1",
     "cookie": "^1.0.2",
     "googleapis": "^148.0.0",
     "openai": "^4.96.0",
     "pdfjs-dist": "^4.10.38",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "undici": "^7.29.0",
     "uuid": "^11.1.0"
   },
   "devDependencies": {

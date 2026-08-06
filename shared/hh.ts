@@ -1,46 +1,259 @@
-import { ApifyClient } from 'apify-client'
 import {
   distributeVacancyBudget,
   pagesForVacancyAllotment,
   vacancyBudgetForKeyCount,
+  ITEMS_PER_PAGE,
 } from './budget'
 import { DEFAULT_AREA_ID, resolveRegions } from './regions'
 import type { Vacancy } from './types'
 
-const EXPERIENCE_LABELS: Record<string, string> = {
-  noExperience: 'нет опыта',
-  between1And3: 'от 1 до 3 лет',
-  between3And6: 'от 3 до 6 лет',
-  moreThan6: 'более 6 лет',
+/**
+ * Collect vacancies by scraping public hh.ru HTML (same pages Apify hit).
+ *
+ * api.hh.ru returns bare 403 `forbidden` to programmatic clients (edge anti-bot).
+ * The website still SSR-renders search results — unless the egress IP is flagged
+ * as VPN/proxy (redirect to /vpncheeck). Optional HH_PROXY (HTTP(S) URL) routes
+ * only HH fetches through a residential/RU proxy.
+ */
+
+const HH_SITE = 'https://hh.ru'
+const UA =
+  process.env.HH_USER_AGENT ||
+  'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36'
+
+const DETAIL_BATCH = 8
+const SEARCH_CONCURRENCY = 2
+const ZWSP = /[\u200B-\u200F\u2060\uFEFF]/g
+
+export type HhCollectPlan = {
+  queries: string[]
+  pagesPerQuery: number[]
+  vacanciesPerQuery: number[]
+  vacancyBudget: number
+  areaIds: string[]
+  regionsResolved: { input: string; id: string; name: string }[]
+  remoteOnly: boolean
+  periodDays: number
 }
 
-const SCHEDULE_LABELS: Record<string, string> = {
-  remote: 'удалённая работа',
-  REMOTE: 'удалённая работа',
-  hybrid: 'гибрид',
-  HYBRID: 'гибрид',
-  ON_SITE: 'офис',
-  FULL: 'полная занятость',
+export type HhCollectProgress = {
+  phase: 'search' | 'details' | 'done'
+  ids: string[]
+  cards: Record<string, Record<string, unknown>>
+  detailsDone: number
+  items: Vacancy[]
+}
+
+type FetchInit = RequestInit & { dispatcher?: unknown }
+
+let proxyDispatcher: unknown | null | undefined
+
+async function getProxyDispatcher(): Promise<unknown | undefined> {
+  if (proxyDispatcher !== undefined) return proxyDispatcher || undefined
+  const proxyUrl = (process.env.HH_PROXY || '').trim()
+  if (!proxyUrl) {
+    proxyDispatcher = null
+    return undefined
+  }
+  try {
+    const undici = await import('undici')
+    proxyDispatcher = new undici.ProxyAgent(proxyUrl)
+    return proxyDispatcher
+  } catch (e) {
+    throw new Error(
+      `HH_PROXY задан, но undici недоступен: ${e instanceof Error ? e.message : String(e)}`,
+    )
+  }
+}
+
+async function hhFetch(url: string): Promise<Response> {
+  const dispatcher = await getProxyDispatcher()
+  const init: FetchInit = {
+    headers: {
+      'User-Agent': UA,
+      Accept: 'text/html,application/xhtml+xml',
+      'Accept-Language': 'ru-RU,ru;q=0.9,en;q=0.8',
+    },
+    redirect: 'follow',
+  }
+  if (dispatcher) init.dispatcher = dispatcher
+  return fetch(url, init as RequestInit)
+}
+
+function assertNotVpnBlocked(res: Response, html: string): void {
+  const finalUrl = res.url || ''
+  if (/\/vpnche{1,2}ck/i.test(finalUrl) || /VPN мешает работе сайта/i.test(html)) {
+    throw new Error(
+      'hh.ru показал VPN-check для IP сервера. ' +
+        'Нужен российский residential-прокси в HH_PROXY (http://user:pass@host:port), ' +
+        'либо сбор с домашнего RU IP. Apify как раз обходит это через свои прокси.',
+    )
+  }
+}
+
+function stripTags(s: string): string {
+  return s
+    .replace(/<br\s*\/?>/gi, '\n')
+    .replace(/<\/p>/gi, '\n')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#x27;|&apos;/gi, "'")
+    .replace(/&laquo;/gi, '«')
+    .replace(/&raquo;/gi, '»')
+    .replace(/&mdash;/gi, '—')
+    .replace(/&ndash;/gi, '–')
+    .replace(ZWSP, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function qaText(block: string, qa: string): string {
+  const m = block.match(
+    new RegExp(`data-qa="${qa}[^"]*"[^>]*>([\\s\\S]*?)</(?:a|span|div)>`),
+  )
+  return m ? stripTags(m[1]) : ''
+}
+
+function extractSalary(block: string): string {
+  const m = block.match(
+    /(?:от|до)?\s?[\d\u00A0\u202F ]{4,}(?:\s?[–—-]\s?[\d\u00A0\u202F ]{4,})?\s?(?:₽|руб|€|\$|USD|EUR|KZT|BYN)/i,
+  )
+  return m ? stripTags(m[0]) : ''
+}
+
+/** Parse vacancy cards from hh.ru search HTML. */
+export function parseHhSearchCards(html: string): Array<{
+  id: string
+  title: string
+  employer: string
+  location: string
+  salary: string
+  snippet: string
+  url: string
+}> {
+  if (!html) return []
+  const out: Array<{
+    id: string
+    title: string
+    employer: string
+    location: string
+    salary: string
+    snippet: string
+    url: string
+  }> = []
+  const seen = new Set<string>()
+  const blocks = html.split('data-qa="vacancy-serp__vacancy"').slice(1)
+
+  for (const b of blocks) {
+    const tm = b.match(
+      /data-qa="serp-item__title[^"]*"[^>]*href="((?:https?:)?\/\/(?:[a-z0-9-]+\.)?hh\.ru\/vacancy\/(\d+)[^"]*)"[\s\S]*?>([\s\S]*?)<\/a>/,
+    )
+    if (!tm) continue
+    const id = tm[2]
+    if (seen.has(id)) continue
+    seen.add(id)
+    const title = stripTags(tm[3])
+    if (!title) continue
+    const responsibility = qaText(b, 'vacancy-serp__vacancy_snippet_responsibility')
+    const requirement = qaText(b, 'vacancy-serp__vacancy_snippet_requirement')
+    out.push({
+      id,
+      title,
+      employer:
+        qaText(b, 'vacancy-serp__vacancy-employer-text') ||
+        qaText(b, 'vacancy-serp__vacancy-employer'),
+      location: qaText(b, 'vacancy-serp__vacancy-address'),
+      salary: extractSalary(b),
+      snippet: [requirement, responsibility].filter(Boolean).join(' '),
+      url: `https://hh.ru/vacancy/${id}`,
+    })
+  }
+  return out
+}
+
+function parseVacancyDetailHtml(html: string, id: string): Record<string, unknown> {
+  const raw: Record<string, unknown> = { id }
+
+  const title =
+    qaText(html, 'vacancy-title') ||
+    (() => {
+      const m = html.match(/<h1[^>]*data-qa="[^"]*vacancy[^"]*"[^>]*>([\s\S]*?)<\/h1>/i)
+      return m ? stripTags(m[1]) : ''
+    })()
+  if (title) raw.name = title
+
+  const descMatch =
+    html.match(/data-qa="vacancy-description"[^>]*>([\s\S]*?)<\/div>/i) ||
+    html.match(/data-qa="vacancy-description"[^>]*>([\s\S]*?)<\/section>/i)
+  if (descMatch) raw.description = descMatch[1]
+
+  const employer =
+    qaText(html, 'vacancy-company-name') || qaText(html, 'bloko-header-2')
+  if (employer) raw.employer = { name: employer }
+
+  const experience = qaText(html, 'vacancy-experience') || qaText(html, 'work-experience-text')
+  if (experience) raw.experience = { name: experience }
+
+  const schedule = qaText(html, 'vacancy-view-employment-mode') || qaText(html, 'common--work-schedule')
+  if (schedule) raw.schedule = { name: schedule }
+
+  const salary = qaText(html, 'vacancy-salary') || qaText(html, 'vacancy-salary-compensation')
+  if (salary) raw.salaryText = salary
+
+  // JSON-LD JobPosting fallback
+  const ldBlocks = html.matchAll(
+    /<script[^>]*type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/gi,
+  )
+  for (const m of ldBlocks) {
+    try {
+      const data = JSON.parse(m[1]) as Record<string, unknown>
+      const job =
+        data['@type'] === 'JobPosting'
+          ? data
+          : Array.isArray(data['@graph'])
+            ? (data['@graph'] as Record<string, unknown>[]).find((g) => g['@type'] === 'JobPosting')
+            : null
+      if (!job) continue
+      if (!raw.name && job.title) raw.name = String(job.title)
+      if (!raw.description && job.description) raw.description = String(job.description)
+      if (!raw.employer && job.hiringOrganization) {
+        const org = job.hiringOrganization as { name?: string }
+        if (org.name) raw.employer = { name: org.name }
+      }
+      break
+    } catch {
+      /* ignore bad json-ld */
+    }
+  }
+
+  raw.alternate_url = `https://hh.ru/vacancy/${id}`
+  return raw
 }
 
 function buildSearchUrl(opts: {
   query: string
   remoteOnly: boolean
   periodDays: number
-  areaIds?: string[]
+  areaIds: string[]
+  page: number
 }): string {
   const params = new URLSearchParams()
   params.set('text', opts.query)
-  params.set('search_period', String(opts.periodDays))
+  params.set(
+    'search_period',
+    String(Math.min(30, Math.max(1, opts.periodDays))),
+  )
   params.set('order_by', 'publication_time')
-  params.set('items_on_page', '50')
-  const areas =
-    opts.areaIds?.filter(Boolean).length
-      ? [...new Set(opts.areaIds.filter(Boolean))]
-      : [DEFAULT_AREA_ID]
+  params.set('items_on_page', String(ITEMS_PER_PAGE))
+  params.set('page', String(opts.page))
+  const areas = opts.areaIds.filter(Boolean).length
+    ? [...new Set(opts.areaIds.filter(Boolean))]
+    : [DEFAULT_AREA_ID]
   for (const area of areas) params.append('area', area)
   if (opts.remoteOnly) params.append('schedule', 'remote')
-  return `https://hh.ru/search/vacancy?${params.toString()}`
+  return `${HH_SITE}/search/vacancy?${params.toString()}`
 }
 
 /** Split comma-separated keys, max 5 unique non-empty. */
@@ -72,24 +285,6 @@ export function distributePageBudget(totalPages: number, queryCount: number): nu
   return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0))
 }
 
-function stripHtml(html: string): string {
-  return html
-    .replace(/<br\s*\/?>/gi, '\n')
-    .replace(/<\/p>/gi, '\n')
-    .replace(/<[^>]+>/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
-}
-
-function pickName(value: unknown): string {
-  if (!value) return ''
-  if (typeof value === 'string') return value
-  if (typeof value === 'object' && value !== null && 'name' in value) {
-    return String((value as { name?: string }).name || '')
-  }
-  return String(value)
-}
-
 export function normalizeVacancy(item: Record<string, unknown>): Vacancy | null {
   const vacancyId = String(item.vacancyId || item.id || '').trim()
   let url = String(item.url || item.alternate_url || '').trim()
@@ -110,32 +305,22 @@ export function normalizeVacancy(item: Record<string, unknown>): Vacancy | null 
   )
   const area = item.area as { name?: string } | string | undefined
   const location =
-    typeof area === 'object' && area ? area.name || '' : String(area || item.location || '')
+    typeof area === 'object' && area
+      ? area.name || ''
+      : String(area || item.location || '')
 
-  const salaryFrom = item.salaryFrom as number | null | undefined
-  const salaryTo = item.salaryTo as number | null | undefined
-  const salaryCurrency = String(item.salaryCurrency || '')
-  let salary = String(item.salaryText || '')
-  if (!salary && (salaryFrom || salaryTo)) {
-    salary = [salaryFrom ? `от ${salaryFrom}` : '', salaryTo ? `до ${salaryTo}` : '']
-      .filter(Boolean)
-      .join(' ')
-    if (salaryCurrency) salary = `${salary} ${salaryCurrency}`
-  }
-
-  const experience = EXPERIENCE_LABELS[String(item.workExperience || '')] ||
-    pickName(item.experience) ||
-    String(item.workExperience || '')
+  const salary = String(item.salaryText || item.salary || '')
+  const experience =
+    typeof item.experience === 'object' && item.experience
+      ? String((item.experience as { name?: string }).name || '')
+      : String(item.experience || '')
   const schedule =
-    SCHEDULE_LABELS[String(item.workSchedule || '')] ||
-    SCHEDULE_LABELS[String((item.workFormats as string[] | undefined)?.[0] || '')] ||
-    pickName(item.schedule) ||
-    String(item.workSchedule || '')
+    typeof item.schedule === 'object' && item.schedule
+      ? String((item.schedule as { name?: string }).name || '')
+      : String(item.schedule || '')
 
-  const description = stripHtml(
-    String(item.descriptionText || item.description || ''),
-  )
-  const snippet = stripHtml(String(item.snippet || '')) || description.slice(0, 280)
+  const description = stripTags(String(item.descriptionText || item.description || ''))
+  const snippet = stripTags(String(item.snippet || '')) || description.slice(0, 280)
 
   const content = [title, employer, location, salary, experience, schedule, snippet, description]
     .filter(Boolean)
@@ -155,28 +340,18 @@ export function normalizeVacancy(item: Record<string, unknown>): Vacancy | null 
   }
 }
 
-export async function startHhCollect(opts: {
+export function emptyCollectProgress(): HhCollectProgress {
+  return { phase: 'search', ids: [], cards: {}, detailsDone: 0, items: [] }
+}
+
+/** Validate inputs and build a collect plan (no network). */
+export function planHhCollect(opts: {
   query: string
   remoteOnly: boolean
   periodDays: number
-  /** Comma-separated region names; empty → all Russia */
   regions?: string
-  /** Optional override; by default derived from key count. */
   vacancyBudget?: number
-}): Promise<{
-  runIds: string[]
-  queries: string[]
-  pagesPerQuery: number[]
-  vacanciesPerQuery: number[]
-  vacancyBudget: number
-  areaIds: string[]
-  regionsResolved: { input: string; id: string; name: string }[]
-}> {
-  const token = process.env.APIFY_TOKEN
-  if (!token) throw new Error('APIFY_TOKEN не задан')
-  const actor = process.env.APIFY_ACTOR
-  if (!actor) throw new Error('APIFY_ACTOR не задан')
-
+}): HhCollectPlan {
   const queries = parseSearchQueries(opts.query)
   if (!queries.length) throw new Error('Укажите хотя бы один поисковый ключ')
 
@@ -198,107 +373,194 @@ export async function startHhCollect(opts: {
       : vacancyBudgetForKeyCount(queries.length)
   const vacanciesPerQuery = distributeVacancyBudget(vacancyBudget, queries.length)
   const pagesPerQuery = vacanciesPerQuery.map(pagesForVacancyAllotment)
-  const client = new ApifyClient({ token })
-  const runIds: string[] = []
 
-  // One Apify run per key that got ≥1 page from the shared budget
-  for (let i = 0; i < queries.length; i++) {
-    const pages = pagesPerQuery[i]
-    if (pages <= 0) continue
-    const searchUrl = buildSearchUrl({
-      query: queries[i],
-      remoteOnly: opts.remoteOnly,
-      periodDays: opts.periodDays,
-      areaIds,
-    })
-    const run = await client.actor(actor).start({
-      mode: 'url',
-      urls: [searchUrl],
-      maxPages: pages,
-      fetchDetails: true,
-    })
-    if (!run?.id) throw new Error(`Не удалось запустить Apify для «${queries[i]}»`)
-    runIds.push(run.id)
-  }
-
-  if (!runIds.length) {
+  if (!pagesPerQuery.some((p) => p > 0)) {
     throw new Error('Бюджет страниц слишком мал для выбранных ключей')
   }
 
   return {
-    runIds,
     queries,
     pagesPerQuery,
     vacanciesPerQuery,
     vacancyBudget,
     areaIds,
     regionsResolved: regionResult.resolved,
+    remoteOnly: opts.remoteOnly,
+    periodDays: opts.periodDays,
   }
 }
 
-export async function getHhCollectStatus(runIds: string[]): Promise<{
-  status: string
-  items?: Vacancy[]
-  done: number
-  total: number
-}> {
-  const token = process.env.APIFY_TOKEN
-  if (!token) throw new Error('APIFY_TOKEN не задан')
-  const client = new ApifyClient({ token })
-  const ids = runIds.filter(Boolean)
-  if (!ids.length) return { status: 'UNKNOWN', done: 0, total: 0 }
-
-  const statuses: string[] = []
-  const datasetIds: string[] = []
-
-  for (const runId of ids) {
-    const run = await client.run(runId).get()
-    if (!run) {
-      statuses.push('UNKNOWN')
-      continue
-    }
-    const st = String(run.status || 'UNKNOWN')
-    statuses.push(st)
-    if (st === 'SUCCEEDED' && run.defaultDatasetId) {
-      datasetIds.push(run.defaultDatasetId)
-    }
+async function fetchSearchPage(
+  query: string,
+  plan: HhCollectPlan,
+  page: number,
+): Promise<ReturnType<typeof parseHhSearchCards>> {
+  const url = buildSearchUrl({
+    query,
+    remoteOnly: plan.remoteOnly,
+    periodDays: plan.periodDays,
+    areaIds: plan.areaIds,
+    page,
+  })
+  const res = await hhFetch(url)
+  const html = await res.text()
+  assertNotVpnBlocked(res, html)
+  if (!res.ok) {
+    throw new Error(`hh.ru search HTTP ${res.status}`)
   }
+  return parseHhSearchCards(html)
+}
 
-  const total = ids.length
-  const terminal = new Set(['SUCCEEDED', 'FAILED', 'ABORTED', 'TIMED-OUT'])
-  const done = statuses.filter((s) => terminal.has(s)).length
-  const failed = statuses.filter((s) =>
-    ['FAILED', 'ABORTED', 'TIMED-OUT'].includes(s),
-  ).length
-  const allDone = done === total
-
-  if (!allDone) {
-    return { status: 'RUNNING', done, total }
+async function fetchVacancyDetail(id: string): Promise<Record<string, unknown>> {
+  const res = await hhFetch(`${HH_SITE}/vacancy/${id}`)
+  const html = await res.text()
+  assertNotVpnBlocked(res, html)
+  if (!res.ok) {
+    throw new Error(`hh.ru vacancy ${id} HTTP ${res.status}`)
   }
-  if (failed === total) {
-    return { status: 'FAILED', done, total }
-  }
+  return parseVacancyDetailHtml(html, id)
+}
 
-  const items: Vacancy[] = []
-  const seen = new Set<string>()
-  for (const datasetId of datasetIds) {
-    const dataset = client.dataset(datasetId)
-    let offset = 0
-    const limit = 100
-    for (;;) {
-      const page = await dataset.listItems({ offset, limit })
-      const batch = page.items || []
-      for (const raw of batch) {
-        const v = normalizeVacancy(raw as Record<string, unknown>)
-        if (!v || seen.has(v.vacancyId)) continue
-        seen.add(v.vacancyId)
-        items.push(v)
+/**
+ * Advance collection by one poll slice: all search pages, then a batch of details.
+ * Safe for Netlify timeouts — call repeatedly until phase === 'done'.
+ */
+export async function advanceHhCollect(
+  plan: HhCollectPlan,
+  progress: HhCollectProgress,
+): Promise<HhCollectProgress> {
+  if (progress.phase === 'done') return progress
+
+  if (progress.phase === 'search') {
+    const seen = new Set(progress.ids)
+    const cards = { ...progress.cards }
+    const ids = [...progress.ids]
+    const perQueryCount = new Map<string, number>()
+
+    const jobs: { query: string; page: number; allotment: number }[] = []
+    for (let qi = 0; qi < plan.queries.length; qi++) {
+      const pages = plan.pagesPerQuery[qi]
+      const allotment = plan.vacanciesPerQuery[qi]
+      if (pages <= 0 || allotment <= 0) continue
+      for (let p = 0; p < pages; p++) {
+        jobs.push({ query: plan.queries[qi], page: p, allotment })
       }
-      if (batch.length < limit) break
-      offset += batch.length
-      if (offset > 2000) break
+    }
+
+    for (let i = 0; i < jobs.length; i += SEARCH_CONCURRENCY) {
+      const chunk = jobs.slice(i, i + SEARCH_CONCURRENCY)
+      const pages = await Promise.all(
+        chunk.map((j) => fetchSearchPage(j.query, plan, j.page)),
+      )
+      for (let j = 0; j < chunk.length; j++) {
+        const job = chunk[j]
+        const cardsOnPage = pages[j]
+        for (const card of cardsOnPage) {
+          if ((perQueryCount.get(job.query) || 0) >= job.allotment) break
+          if (seen.has(card.id)) continue
+          seen.add(card.id)
+          ids.push(card.id)
+          cards[card.id] = {
+            id: card.id,
+            name: card.title,
+            title: card.title,
+            employer: { name: card.employer },
+            location: card.location,
+            salaryText: card.salary,
+            snippet: card.snippet,
+            alternate_url: card.url,
+          }
+          perQueryCount.set(job.query, (perQueryCount.get(job.query) || 0) + 1)
+        }
+      }
+    }
+
+    const cappedIds = ids.slice(0, plan.vacancyBudget)
+    const cappedCards: Record<string, Record<string, unknown>> = {}
+    for (const id of cappedIds) cappedCards[id] = cards[id]
+
+    return {
+      phase: 'details',
+      ids: cappedIds,
+      cards: cappedCards,
+      detailsDone: 0,
+      items: [],
     }
   }
 
-  return { status: 'SUCCEEDED', items, done, total }
+  const start = progress.detailsDone
+  const end = Math.min(start + DETAIL_BATCH, progress.ids.length)
+  const batchIds = progress.ids.slice(start, end)
+  const items = [...progress.items]
+
+  const details = await Promise.all(
+    batchIds.map(async (id) => {
+      try {
+        return await fetchVacancyDetail(id)
+      } catch {
+        return progress.cards[id] || { id }
+      }
+    }),
+  )
+
+  for (let i = 0; i < details.length; i++) {
+    const id = batchIds[i]
+    const merged = { ...(progress.cards[id] || {}), ...details[i] }
+    const v = normalizeVacancy(merged)
+    if (v) items.push(v)
+  }
+
+  const detailsDone = end
+  const done = detailsDone >= progress.ids.length
+  return {
+    phase: done ? 'done' : 'details',
+    ids: progress.ids,
+    cards: progress.cards,
+    detailsDone,
+    items,
+  }
+}
+
+export function collectProgressLabel(progress: HhCollectProgress): string {
+  if (progress.phase === 'search') return 'Поиск вакансий на hh.ru…'
+  if (progress.phase === 'details') {
+    return `Загрузка описаний ${progress.detailsDone}/${progress.ids.length}`
+  }
+  return `Собрано ${progress.items.length} вакансий`
+}
+
+/** Lightweight probe for staging / health checks. */
+export async function probeHhAccess(): Promise<{
+  ok: boolean
+  cards: number
+  finalUrl: string
+  proxy: boolean
+  error?: string
+}> {
+  const proxy = Boolean((process.env.HH_PROXY || '').trim())
+  try {
+    const url = buildSearchUrl({
+      query: 'менеджер',
+      remoteOnly: true,
+      periodDays: 7,
+      areaIds: [DEFAULT_AREA_ID],
+      page: 0,
+    })
+    const res = await hhFetch(url)
+    const html = await res.text()
+    assertNotVpnBlocked(res, html)
+    if (!res.ok) {
+      return { ok: false, cards: 0, finalUrl: res.url, proxy, error: `HTTP ${res.status}` }
+    }
+    const cards = parseHhSearchCards(html).length
+    return { ok: cards > 0, cards, finalUrl: res.url, proxy }
+  } catch (e) {
+    return {
+      ok: false,
+      cards: 0,
+      finalUrl: '',
+      proxy,
+      error: e instanceof Error ? e.message : String(e),
+    }
+  }
 }

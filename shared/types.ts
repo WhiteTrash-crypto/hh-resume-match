@@ -27,9 +27,6 @@ export type JobState = {
     | 'done'
     | 'error'
   message: string
-  /** @deprecated use apifyRunIds */
-  apifyRunId?: string
-  apifyRunIds?: string[]
   queries?: string[]
   /** Total vacancy budget for this run (by key count). */
   vacancyBudget?: number
@@ -43,6 +40,22 @@ export type JobState = {
     writtenCandidates: number
   }
   error?: string
+}
+
+/** In-flight HH HTML collect state between status polls. */
+export type HhCollectState = {
+  queries: string[]
+  pagesPerQuery: number[]
+  vacanciesPerQuery: number[]
+  vacancyBudget: number
+  areaIds: string[]
+  remoteOnly: boolean
+  periodDays: number
+  phase: 'search' | 'details' | 'done'
+  ids: string[]
+  cards: Record<string, Record<string, unknown>>
+  detailsDone: number
+  items: Vacancy[]
 }
 
 export type SessionData = {
@@ -66,6 +79,7 @@ export type SessionData = {
     vacancies: Vacancy[]
     scores: AtsResult[]
     cursor: number
+    collect?: HhCollectState
   }
 }
 

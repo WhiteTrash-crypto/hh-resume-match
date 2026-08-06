@@ -5,8 +5,9 @@ import {
   refundAccessKey,
 } from '../../shared/accessKeys'
 import { vacancyBudgetForKeyCount } from '../../shared/budget'
-import { parseSearchQueries, startHhCollect } from '../../shared/hh'
+import { emptyCollectProgress, parseSearchQueries, planHhCollect } from '../../shared/hh'
 import { isReadyToParse, saveSession } from '../../shared/store'
+import type { HhCollectState } from '../../shared/types'
 import { json, withApi } from './_lib'
 
 export default withApi(async (req, session) => {
@@ -74,34 +75,51 @@ export default withApi(async (req, session) => {
   const vacancyBudget = vacancyBudgetForKeyCount(queries.length)
 
   try {
-    const { runIds, pagesPerQuery, vacanciesPerQuery, regionsResolved, areaIds } =
-      await startHhCollect({
-        query: session.config.query!,
-        regions: session.config.regions || '',
-        remoteOnly: session.config.remoteOnly !== false,
-        periodDays: session.config.periodDays || 7,
-        vacancyBudget,
-      })
+    const plan = planHhCollect({
+      query: session.config.query!,
+      regions: session.config.regions || '',
+      remoteOnly: session.config.remoteOnly !== false,
+      periodDays: session.config.periodDays || 7,
+      vacancyBudget,
+    })
 
-    const plan = queries
-      .map((q, i) => `${q}→${vacanciesPerQuery[i] || 0} вак. (~${pagesPerQuery[i] || 0} стр.)`)
+    const progress = emptyCollectProgress()
+    const collect: HhCollectState = {
+      queries: plan.queries,
+      pagesPerQuery: plan.pagesPerQuery,
+      vacanciesPerQuery: plan.vacanciesPerQuery,
+      vacancyBudget: plan.vacancyBudget,
+      areaIds: plan.areaIds,
+      remoteOnly: plan.remoteOnly,
+      periodDays: plan.periodDays,
+      phase: progress.phase,
+      ids: progress.ids,
+      cards: progress.cards,
+      detailsDone: progress.detailsDone,
+      items: progress.items,
+    }
+
+    const planLabel = queries
+      .map(
+        (q, i) =>
+          `${q}→${plan.vacanciesPerQuery[i] || 0} вак. (~${plan.pagesPerQuery[i] || 0} стр.)`,
+      )
       .join(', ')
-    const regionLabel = regionsResolved
+    const regionLabel = plan.regionsResolved
       .map((r) => r.name)
       .filter(Boolean)
       .join(', ')
+
     session.job = {
       id: uuid(),
       status: 'collecting',
-      message: `Сбор hh.ru (${queries.length} ключ., ${regionLabel || 'Россия'}, бюджет ${vacancyBudget} вак., area=${areaIds.join('|')}): ${plan}`,
-      apifyRunId: runIds[0],
-      apifyRunIds: runIds,
+      message: `Сбор hh.ru (${queries.length} ключ., ${regionLabel || 'Россия'}, бюджет ${vacancyBudget} вак., area=${plan.areaIds.join('|')}): ${planLabel}`,
       queries,
       vacancyBudget,
       startedAt: new Date().toISOString(),
     }
-    session.config.maxPages = pagesPerQuery.reduce((a, b) => a + b, 0)
-    session.pipeline = undefined
+    session.config.maxPages = plan.pagesPerQuery.reduce((a, b) => a + b, 0)
+    session.pipeline = { vacancies: [], scores: [], cursor: 0, collect }
     await saveSession(session)
     return json({
       job: session.job,
