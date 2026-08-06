@@ -83,6 +83,10 @@ export async function ensureSheet(
   title: string,
   headers: string[],
 ) {
+  const quote = (t: string, range = 'A1') => {
+    const escaped = String(t || '').replace(/'/g, "''")
+    return `'${escaped}'!${range}`
+  }
   const meta = await sheets.spreadsheets.get({ spreadsheetId })
   const existing = meta.data.sheets?.find((s) => s.properties?.title === title)
   if (!existing) {
@@ -94,7 +98,7 @@ export async function ensureSheet(
     })
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${title}!A1`,
+      range: quote(title, 'A1'),
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [headers] },
     })
@@ -102,12 +106,12 @@ export async function ensureSheet(
   }
   const values = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${title}!1:1`,
+    range: quote(title, '1:1'),
   })
   if (!values.data.values?.[0]?.length) {
     await sheets.spreadsheets.values.append({
       spreadsheetId,
-      range: `${title}!A1`,
+      range: quote(title, 'A1'),
       valueInputOption: 'USER_ENTERED',
       requestBody: { values: [headers] },
     })

@@ -124,6 +124,8 @@ export default withApi(async (req, session) => {
     session.pipeline = { vacancies: [], scores: [], cursor: 0, collect }
     await saveSession(session)
 
+    let usageLogOk = true
+    let usageLogError = ''
     try {
       await logAccessUsage({
         key: consumed.key,
@@ -136,7 +138,11 @@ export default withApi(async (req, session) => {
         jobId,
       })
     } catch (e) {
+      usageLogOk = false
+      usageLogError = e instanceof Error ? e.message : String(e)
       console.error('logAccessUsage failed', e)
+      session.job.message = `${session.job.message} | usage log error: ${usageLogError}`
+      await saveSession(session)
     }
 
     return json({
@@ -145,6 +151,7 @@ export default withApi(async (req, session) => {
         unlocked: true,
         usesLeft: consumed.usesLeft,
       },
+      usageLog: usageLogOk ? { ok: true } : { ok: false, error: usageLogError },
     })
   } catch (e) {
     const refunded = await refundAccessKey(accessKey)

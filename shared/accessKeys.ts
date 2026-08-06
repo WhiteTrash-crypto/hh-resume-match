@@ -39,6 +39,11 @@ const USAGE_HEADERS = [
   'job_id',
 ]
 
+/** Central log (all keys) — easier to glance than per-key tabs. */
+const USAGE_LOG_HEADERS = ['started_at', 'access_key', ...USAGE_HEADERS.slice(1)]
+
+const USAGE_LOG_SHEET = 'usage_log'
+
 export function accessKeysSheetId(): string {
   return (
     process.env.ACCESS_KEYS_SHEET_ID?.trim() ||
@@ -51,6 +56,12 @@ function accessKeysTab(): string {
   return process.env.ACCESS_KEYS_SHEET_TAB?.trim() || 'Лист1'
 }
 
+/** Quote sheet title for A1 ranges (spaces / special chars / Cyrillic). */
+export function a1SheetRange(sheetTitle: string, cellRange = 'A1'): string {
+  const escaped = String(sheetTitle || '').replace(/'/g, "''")
+  return `'${escaped}'!${cellRange}`
+}
+
 /** Google Sheet tab title for a key (≤100 chars, no forbidden symbols). */
 export function usageSheetTitleForKey(key: string): string {
   const cleaned = (key || '')
@@ -58,7 +69,14 @@ export function usageSheetTitleForKey(key: string): string {
     .replace(/[\\/?*[\]:]/g, '_')
     .replace(/\s+/g, ' ')
     .slice(0, 100)
-  return cleaned || 'unknown'
+  // Avoid colliding with the keys list tab or the shared log.
+  if (!cleaned || cleaned.toLowerCase() === accessKeysTab().toLowerCase()) {
+    return `key_${cleaned || 'unknown'}`.slice(0, 100)
+  }
+  if (cleaned.toLowerCase() === USAGE_LOG_SHEET) {
+    return `key_${cleaned}`.slice(0, 100)
+  }
+  return cleaned
 }
 
 function parseUses(raw: unknown): number {
@@ -76,7 +94,7 @@ async function findKeyRow(rawKey: string): Promise<AccessKeyRecord | null> {
   const tab = accessKeysTab()
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId,
-    range: `${tab}!A:B`,
+    range: a1SheetRange(tab, 'A:B'),
   })
   const rows = res.data.values || []
   for (let i = 0; i < rows.length; i++) {
@@ -98,7 +116,7 @@ async function writeUsesLeft(row: number, usesLeft: number): Promise<void> {
   const tab = accessKeysTab()
   await sheets.spreadsheets.values.update({
     spreadsheetId,
-    range: `${tab}!B${row}`,
+    range: a1SheetRange(tab, `B${row}`),
     valueInputOption: 'USER_ENTERED',
     requestBody: { values: [[usesLeft]] },
   })
@@ -170,31 +188,41 @@ export async function refundAccessKey(key: string): Promise<AccessKeyRecord | nu
 }
 
 /**
- * Append one usage row to a per-key sheet in the access-keys spreadsheet.
+ * Append usage rows: shared `usage_log` + per-key sheet.
  * Does not store resumes — only search params for tester analytics.
  */
 export async function logAccessUsage(log: AccessUsageLog): Promise<void> {
   const sheets = await getSheetsClient()
   const spreadsheetId = accessKeysSheetId()
-  const title = usageSheetTitleForKey(log.key)
-  await ensureSheet(sheets, spreadsheetId, title, USAGE_HEADERS)
+  const perKeyTitle = usageSheetTitleForKey(log.key)
+  const startedAt = new Date().toISOString()
+  const perKeyRow = [
+    startedAt,
+    log.queries.join(', '),
+    log.regions.trim() || '',
+    log.regionsLabel.trim() || 'все регионы',
+    log.remoteOnly ? 'да' : 'нет',
+    log.periodDays,
+    log.usesLeft,
+    log.jobId,
+  ]
+  const sharedRow = [startedAt, log.key, ...perKeyRow.slice(1)]
+
+  await ensureSheet(sheets, spreadsheetId, USAGE_LOG_SHEET, USAGE_LOG_HEADERS)
+  await ensureSheet(sheets, spreadsheetId, perKeyTitle, USAGE_HEADERS)
+
   await sheets.spreadsheets.values.append({
     spreadsheetId,
-    range: `${title}!A1`,
+    range: a1SheetRange(USAGE_LOG_SHEET, 'A1'),
     valueInputOption: 'USER_ENTERED',
-    requestBody: {
-      values: [
-        [
-          new Date().toISOString(),
-          log.queries.join(', '),
-          log.regions.trim() || '',
-          log.regionsLabel.trim() || 'все регионы',
-          log.remoteOnly ? 'да' : 'нет',
-          log.periodDays,
-          log.usesLeft,
-          log.jobId,
-        ],
-      ],
-    },
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: [sharedRow] },
+  })
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: a1SheetRange(perKeyTitle, 'A1'),
+    valueInputOption: 'USER_ENTERED',
+    insertDataOption: 'INSERT_ROWS',
+    requestBody: { values: [perKeyRow] },
   })
 }
