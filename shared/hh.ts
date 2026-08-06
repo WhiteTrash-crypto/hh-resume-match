@@ -4,7 +4,7 @@ import {
   vacancyBudgetForKeyCount,
   ITEMS_PER_PAGE,
 } from './budget'
-import { DEFAULT_AREA_ID, resolveRegions } from './regions'
+import { resolveRegions } from './regions'
 import type { Vacancy } from './types'
 
 /**
@@ -248,9 +248,7 @@ function buildSearchUrl(opts: {
   params.set('order_by', 'publication_time')
   params.set('items_on_page', String(ITEMS_PER_PAGE))
   params.set('page', String(opts.page))
-  const areas = opts.areaIds.filter(Boolean).length
-    ? [...new Set(opts.areaIds.filter(Boolean))]
-    : [DEFAULT_AREA_ID]
+  const areas = [...new Set(opts.areaIds.filter(Boolean))]
   for (const area of areas) params.append('area', area)
   if (opts.remoteOnly) params.append('schedule', 'remote')
   return `${HH_SITE}/search/vacancy?${params.toString()}`
@@ -359,13 +357,15 @@ export function planHhCollect(opts: {
   if ((opts.regions || '').trim() && regionResult.unresolved.length) {
     throw new Error(
       `Не удалось распознать регион(ы): ${regionResult.unresolved.join(', ')}. ` +
-        'Примеры: Москва, СПб, Питер, Казань, Екатеринбург',
+        'Примеры: Москва, СПб, Алматы, Минск, Казахстан, ОАЭ, Польша',
     )
   }
   if ((opts.regions || '').trim() && !regionResult.areaIds.length) {
-    throw new Error('Укажите хотя бы один понятный регион или оставьте поле пустым (вся Россия)')
+    throw new Error(
+      'Укажите хотя бы один понятный регион/страну или оставьте поле пустым (без фильтра по гео)',
+    )
   }
-  const areaIds = regionResult.areaIds.length ? regionResult.areaIds : [DEFAULT_AREA_ID]
+  const areaIds = regionResult.areaIds
 
   const vacancyBudget =
     opts.vacancyBudget && opts.vacancyBudget > 0
@@ -543,7 +543,7 @@ export async function probeHhAccess(): Promise<{
       query: 'менеджер',
       remoteOnly: true,
       periodDays: 7,
-      areaIds: [DEFAULT_AREA_ID],
+      areaIds: [],
       page: 0,
     })
     const res = await hhFetch(url)

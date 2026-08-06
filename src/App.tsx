@@ -440,10 +440,10 @@ export default function App() {
               <p className="field-error">Укажите хотя бы один ключ</p>
             )}
             <label>
-              Регионы (необязательно, через запятую)
+              Регионы / страны (необязательно, через запятую)
               <input
                 type="text"
-                placeholder="Москва, СПб, Казань"
+                placeholder="пусто = везде; напр. Москва, Алматы, ОАЭ, Польша"
                 value={regions}
                 onChange={(e) => setRegions(e.target.value)}
               />

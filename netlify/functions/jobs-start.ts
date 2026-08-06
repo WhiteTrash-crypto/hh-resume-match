@@ -113,7 +113,7 @@ export default withApi(async (req, session) => {
     session.job = {
       id: uuid(),
       status: 'collecting',
-      message: `Сбор hh.ru (${queries.length} ключ., ${regionLabel || 'Россия'}, бюджет ${vacancyBudget} вак., area=${plan.areaIds.join('|')}): ${planLabel}`,
+      message: `Сбор hh.ru (${queries.length} ключ., ${regionLabel || 'все регионы'}, бюджет ${vacancyBudget} вак.${plan.areaIds.length ? `, area=${plan.areaIds.join('|')}` : ', без area'}): ${planLabel}`,
       queries,
       vacancyBudget,
       startedAt: new Date().toISOString(),

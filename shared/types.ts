@@ -9,7 +9,7 @@ export type SearchConfig = {
   sheetUrl: string
   sheetId: string
   query: string
-  /** Comma-separated regions (fuzzy → HH area ids). Empty = all Russia. */
+  /** Comma-separated regions/countries (fuzzy → HH area ids). Empty = no geo filter. */
   regions: string
   remoteOnly: boolean
   periodDays: number
