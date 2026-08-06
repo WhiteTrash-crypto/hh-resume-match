@@ -72,6 +72,11 @@ async function getSheets() {
   return google.sheets({ version: 'v4', auth })
 }
 
+/** Shared Google Sheets client (results + access keys). */
+export async function getSheetsClient() {
+  return getSheets()
+}
+
 async function ensureSheet(
   sheets: ReturnType<typeof google.sheets>,
   spreadsheetId: string,

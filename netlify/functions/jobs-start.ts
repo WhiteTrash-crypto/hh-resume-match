@@ -14,18 +14,19 @@ export default withApi(async (req, session) => {
     return json({ error: 'Method not allowed' }, { status: 405 })
   }
 
-  if (!session.access?.keyHash) {
+  if (!session.access?.key) {
     return json(
       {
         error: 'Нужен ключ доступа',
         code: 'locked',
-        access: { unlocked: false, usesLeft: 0, usesTotal: 0 },
+        access: { unlocked: false, usesLeft: 0 },
       },
       { status: 401 },
     )
   }
 
-  const ledger = await peekAccessKey(session.access.keyHash)
+  const accessKey = session.access.key
+  const ledger = await peekAccessKey(accessKey)
   const usesLeft = ledger?.usesLeft ?? session.access.usesLeft
   if (!ledger || usesLeft <= 0) {
     session.access.usesLeft = 0
@@ -34,11 +35,7 @@ export default withApi(async (req, session) => {
       {
         error: 'Ключ истёк — лимит запросов исчерпан',
         code: 'expired',
-        access: {
-          unlocked: true,
-          usesLeft: 0,
-          usesTotal: session.access.usesTotal || ledger?.usesTotal || 2,
-        },
+        access: { unlocked: true, usesLeft: 0 },
       },
       { status: 403 },
     )
@@ -60,23 +57,18 @@ export default withApi(async (req, session) => {
     return json({ error: 'Укажите хотя бы один поисковый ключ' }, { status: 400 })
   }
 
-  const consumed = await consumeAccessKey(session.access.keyHash)
+  const consumed = await consumeAccessKey(accessKey)
   if (!consumed.ok) {
     return json(
       {
         error: consumed.error,
         code: consumed.code,
-        access: {
-          unlocked: true,
-          usesLeft: 0,
-          usesTotal: session.access.usesTotal,
-        },
+        access: { unlocked: true, usesLeft: 0 },
       },
       { status: 403 },
     )
   }
   session.access.usesLeft = consumed.usesLeft
-  session.access.usesTotal = consumed.usesTotal
   await saveSession(session)
 
   const vacancyBudget = vacancyBudgetForKeyCount(queries.length)
@@ -110,14 +102,12 @@ export default withApi(async (req, session) => {
       access: {
         unlocked: true,
         usesLeft: consumed.usesLeft,
-        usesTotal: consumed.usesTotal,
       },
     })
   } catch (e) {
-    const refunded = await refundAccessKey(session.access.keyHash)
+    const refunded = await refundAccessKey(accessKey)
     if (refunded && session.access) {
       session.access.usesLeft = refunded.usesLeft
-      session.access.usesTotal = refunded.usesTotal
     }
     session.job = {
       id: uuid(),

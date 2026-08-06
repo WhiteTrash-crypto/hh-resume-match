@@ -21,16 +21,15 @@ export default withApi(async (req, session) => {
       {
         error: result.error,
         code: result.code,
-        access: { unlocked: false, usesLeft: 0, usesTotal: 0 },
+        access: { unlocked: false, usesLeft: 0 },
       },
       { status },
     )
   }
 
   session.access = {
-    keyHash: result.keyHash,
+    key: result.key,
     usesLeft: result.usesLeft,
-    usesTotal: result.usesTotal,
     unlockedAt: new Date().toISOString(),
   }
   await saveSession(session)
@@ -40,7 +39,6 @@ export default withApi(async (req, session) => {
     access: {
       unlocked: true,
       usesLeft: result.usesLeft,
-      usesTotal: result.usesTotal,
     },
   })
 })

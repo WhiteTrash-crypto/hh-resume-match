@@ -54,9 +54,9 @@ export type SessionData = {
   job: JobState
   /** Access-key unlock bound to this browser session */
   access?: {
-    keyHash: string
+    /** Plain key (matches column A in keys sheet) */
+    key: string
     usesLeft: number
-    usesTotal: number
     unlockedAt: string
   }
   /** Temporary pipeline buffer */

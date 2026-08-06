@@ -1,163 +1,136 @@
-import { createHash } from 'node:crypto'
-import { getStore } from '@netlify/blobs'
-import { mkdir, readFile, writeFile } from 'node:fs/promises'
-import path from 'node:path'
-import { useLocalBlobFallback } from './store'
-
-export const DEFAULT_USES_PER_KEY = 2
+import { getSheetsClient } from './sheets'
 
 export type AccessKeyRecord = {
-  keyHash: string
-  usesTotal: number
+  /** Plain key from column A */
+  key: string
+  /** 1-based row in the keys sheet */
+  row: number
+  /** Remaining uses from column B */
   usesLeft: number
-  createdAt: string
-  updatedAt: string
-  hint?: string
 }
 
 export type AccessUnlockResult =
-  | { ok: true; usesLeft: number; usesTotal: number; keyHash: string }
+  | { ok: true; key: string; usesLeft: number }
   | { ok: false; code: 'invalid' | 'expired' | 'not_configured'; error: string }
 
-const LOCAL_DIR = path.join(process.cwd(), '.data', 'access-keys')
+const DEFAULT_KEYS_SHEET_ID = '1vxccqrxcPzX1dOK3LM_q9YRvjRvhdoPGDAt-OIicRNk'
 
-function blobsStore() {
-  return getStore({ name: 'access-keys', consistency: 'strong' })
+export function accessKeysSheetId(): string {
+  return (
+    process.env.ACCESS_KEYS_SHEET_ID?.trim() ||
+    process.env.ACCESS_KEYS_SHEET?.trim() ||
+    DEFAULT_KEYS_SHEET_ID
+  )
 }
 
-export function hashAccessKey(raw: string): string {
-  const salt = process.env.SESSION_SECRET || process.env.ACCESS_KEY_SALT || 'hrm-access'
-  return createHash('sha256').update(`${salt}:${raw.trim()}`).digest('hex')
+function accessKeysTab(): string {
+  return process.env.ACCESS_KEYS_SHEET_TAB?.trim() || 'Лист1'
 }
 
-export function usesPerKey(): number {
-  const n = Number(process.env.ACCESS_KEY_USES || DEFAULT_USES_PER_KEY)
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : DEFAULT_USES_PER_KEY
+function parseUses(raw: unknown): number {
+  const n = Number(String(raw ?? '').trim().replace(',', '.'))
+  if (!Number.isFinite(n)) return 0
+  return Math.max(0, Math.floor(n))
 }
 
-/** Allowlist: ACCESS_KEYS=key1,key2 or newline-separated. */
-export function configuredAccessKeys(): string[] {
-  const raw = process.env.ACCESS_KEYS || ''
-  const seen = new Set<string>()
-  const out: string[] = []
-  for (const part of raw.split(/[,\n]/)) {
-    const k = part.trim()
-    if (!k || seen.has(k)) continue
-    seen.add(k)
-    out.push(k)
-  }
-  return out
-}
+async function findKeyRow(rawKey: string): Promise<AccessKeyRecord | null> {
+  const key = (rawKey || '').trim()
+  if (!key) return null
 
-async function getRecord(keyHash: string): Promise<AccessKeyRecord | null> {
-  if (useLocalBlobFallback()) {
-    try {
-      const raw = await readFile(path.join(LOCAL_DIR, `${keyHash}.json`), 'utf8')
-      return JSON.parse(raw) as AccessKeyRecord
-    } catch {
-      return null
+  const sheets = await getSheetsClient()
+  const spreadsheetId = accessKeysSheetId()
+  const tab = accessKeysTab()
+  const res = await sheets.spreadsheets.values.get({
+    spreadsheetId,
+    range: `${tab}!A:B`,
+  })
+  const rows = res.data.values || []
+  for (let i = 0; i < rows.length; i++) {
+    const cell = String(rows[i]?.[0] ?? '').trim()
+    if (!cell) continue
+    if (cell.toLowerCase() !== key.toLowerCase()) continue
+    return {
+      key: cell,
+      row: i + 1,
+      usesLeft: parseUses(rows[i]?.[1]),
     }
   }
-  try {
-    return (await blobsStore().get(keyHash, { type: 'json' })) as AccessKeyRecord | null
-  } catch (e) {
-    console.error('access-keys get failed', e)
-    throw new Error('Не удалось прочитать ключ доступа (Blobs)')
-  }
+  return null
 }
 
-async function setRecord(rec: AccessKeyRecord): Promise<void> {
-  rec.updatedAt = new Date().toISOString()
-  if (useLocalBlobFallback()) {
-    await mkdir(LOCAL_DIR, { recursive: true })
-    await writeFile(path.join(LOCAL_DIR, `${rec.keyHash}.json`), JSON.stringify(rec), 'utf8')
-    return
-  }
-  try {
-    await blobsStore().setJSON(rec.keyHash, rec)
-  } catch (e) {
-    console.error('access-keys set failed', e)
-    throw new Error('Не удалось сохранить ключ доступа (Blobs)')
-  }
+async function writeUsesLeft(row: number, usesLeft: number): Promise<void> {
+  const sheets = await getSheetsClient()
+  const spreadsheetId = accessKeysSheetId()
+  const tab = accessKeysTab()
+  await sheets.spreadsheets.values.update({
+    spreadsheetId,
+    range: `${tab}!B${row}`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: { values: [[usesLeft]] },
+  })
 }
 
+/**
+ * Validate key against Google Sheet (A = key, B = remaining uses).
+ */
 export async function unlockAccessKey(rawKey: string): Promise<AccessUnlockResult> {
   const key = (rawKey || '').trim()
   if (!key) {
     return { ok: false, code: 'invalid', error: 'Введите ключ доступа' }
   }
-  if (!configuredAccessKeys().length) {
-    return {
-      ok: false,
-      code: 'not_configured',
-      error: 'Ключи доступа не настроены на сервере (ACCESS_KEYS)',
+
+  let rec: AccessKeyRecord | null
+  try {
+    rec = await findKeyRow(key)
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    if (/GOOGLE_SA_JSON|permission|forbidden|403|404/i.test(msg)) {
+      return {
+        ok: false,
+        code: 'not_configured',
+        error: `Нет доступа к таблице ключей: ${msg}`,
+      }
     }
+    throw e
   }
-  if (!configuredAccessKeys().includes(key)) {
+
+  if (!rec) {
     return { ok: false, code: 'invalid', error: 'Неверный ключ доступа' }
   }
-
-  const keyHash = hashAccessKey(key)
-  const total = usesPerKey()
-  let rec = await getRecord(keyHash)
-  if (!rec) {
-    const now = new Date().toISOString()
-    rec = {
-      keyHash,
-      usesTotal: total,
-      usesLeft: total,
-      createdAt: now,
-      updatedAt: now,
-      hint: key.slice(-4),
-    }
-    await setRecord(rec)
-  }
-
   if (rec.usesLeft <= 0) {
     return { ok: false, code: 'expired', error: 'Ключ истёк — лимит запросов исчерпан' }
   }
+  return { ok: true, key: rec.key, usesLeft: rec.usesLeft }
+}
 
-  return {
-    ok: true,
-    usesLeft: rec.usesLeft,
-    usesTotal: rec.usesTotal,
-    keyHash: rec.keyHash,
+export async function peekAccessKey(key: string): Promise<AccessKeyRecord | null> {
+  if (!key) return null
+  try {
+    return await findKeyRow(key)
+  } catch (e) {
+    console.error('peekAccessKey failed', e)
+    return null
   }
 }
 
-export async function consumeAccessKey(keyHash: string): Promise<AccessUnlockResult> {
-  if (!keyHash) {
-    return { ok: false, code: 'invalid', error: 'Нет активного ключа доступа' }
-  }
-  const rec = await getRecord(keyHash)
+export async function consumeAccessKey(key: string): Promise<AccessUnlockResult> {
+  const rec = await findKeyRow(key)
   if (!rec) {
     return { ok: false, code: 'invalid', error: 'Ключ доступа не найден' }
   }
   if (rec.usesLeft <= 0) {
     return { ok: false, code: 'expired', error: 'Ключ истёк — лимит запросов исчерпан' }
   }
-  rec.usesLeft -= 1
-  await setRecord(rec)
-  return {
-    ok: true,
-    usesLeft: rec.usesLeft,
-    usesTotal: rec.usesTotal,
-    keyHash: rec.keyHash,
-  }
+  const next = rec.usesLeft - 1
+  await writeUsesLeft(rec.row, next)
+  return { ok: true, key: rec.key, usesLeft: next }
 }
 
 /** Refund one use if Apify start failed after consume. */
-export async function refundAccessKey(keyHash: string): Promise<AccessKeyRecord | null> {
-  const rec = await getRecord(keyHash)
+export async function refundAccessKey(key: string): Promise<AccessKeyRecord | null> {
+  const rec = await findKeyRow(key)
   if (!rec) return null
-  if (rec.usesLeft < rec.usesTotal) {
-    rec.usesLeft += 1
-    await setRecord(rec)
-  }
-  return rec
-}
-
-export async function peekAccessKey(keyHash: string): Promise<AccessKeyRecord | null> {
-  if (!keyHash) return null
-  return getRecord(keyHash)
+  const next = rec.usesLeft + 1
+  await writeUsesLeft(rec.row, next)
+  return { ...rec, usesLeft: next }
 }

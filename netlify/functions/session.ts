@@ -5,15 +5,11 @@ import { json, withApi } from './_lib'
 export default withApi(async (_req, session) => {
   const readiness = isReadyToParse(session)
   let usesLeft = session.access?.usesLeft ?? 0
-  let usesTotal = session.access?.usesTotal ?? 0
-  const unlocked = Boolean(session.access?.keyHash)
+  const unlocked = Boolean(session.access?.key)
 
-  if (session.access?.keyHash) {
-    const rec = await peekAccessKey(session.access.keyHash)
-    if (rec) {
-      usesLeft = rec.usesLeft
-      usesTotal = rec.usesTotal
-    }
+  if (session.access?.key) {
+    const rec = await peekAccessKey(session.access.key)
+    if (rec) usesLeft = rec.usesLeft
   }
 
   return json({
@@ -33,7 +29,6 @@ export default withApi(async (_req, session) => {
     access: {
       unlocked,
       usesLeft,
-      usesTotal,
     },
   })
 })

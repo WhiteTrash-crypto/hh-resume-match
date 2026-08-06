@@ -19,7 +19,6 @@ type Job = {
 type AccessState = {
   unlocked: boolean
   usesLeft: number
-  usesTotal: number
 }
 
 type SessionPayload = {
@@ -52,7 +51,7 @@ class ApiError extends Error {
 
 const MAX_KEYS = 5
 
-const emptyAccess: AccessState = { unlocked: false, usesLeft: 0, usesTotal: 0 }
+const emptyAccess: AccessState = { unlocked: false, usesLeft: 0 }
 
 const empty: SessionPayload = {
   resumes: [],
@@ -332,7 +331,7 @@ export default function App() {
         </header>
         <section className="panel access-panel">
           <h2>Ключ доступа</h2>
-          <p className="hint">Каждый ключ даёт 2 запуска парсинга.</p>
+          <p className="hint">Лимит запусков для ключа задаётся в таблице доступа.</p>
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -373,10 +372,7 @@ export default function App() {
           Загрузите резюме, прикрепите Google Sheet — сервис соберёт вакансии с hh.ru, оценит ATS-fit
           и запишет результат в вашу таблицу. Без регистрации, всё держится на cookie-сессии.
         </p>
-        <p className="access-meta">
-          Осталось запусков: {usesLeft}
-          {session.access.usesTotal ? ` из ${session.access.usesTotal}` : ''}
-        </p>
+        <p className="access-meta">Осталось запусков: {usesLeft}</p>
       </header>
 
       <div className="grid two">
