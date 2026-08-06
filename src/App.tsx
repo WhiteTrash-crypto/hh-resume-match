@@ -31,7 +31,6 @@ type SessionPayload = {
   saEmail: string
 }
 
-const TOTAL_PAGES = 5 // 5 × 50 = 250 vacancies budget for the whole run
 const MAX_KEYS = 5
 
 const empty: SessionPayload = {
@@ -41,7 +40,7 @@ const empty: SessionPayload = {
     query: '',
     remoteOnly: true,
     periodDays: 7,
-    maxPages: TOTAL_PAGES,
+    maxPages: 0,
   },
   job: { status: 'idle', message: 'Ожидание запуска' },
   ready: false,
@@ -189,7 +188,6 @@ export default function App() {
           query,
           remoteOnly,
           periodDays: 7,
-          maxPages: TOTAL_PAGES,
         }),
       })
       await refresh()
@@ -213,7 +211,6 @@ export default function App() {
           query,
           remoteOnly,
           periodDays: 7,
-          maxPages: TOTAL_PAGES,
         }),
       })
       await api('jobs-start', { method: 'POST' })
@@ -351,6 +348,7 @@ export default function App() {
         <h2>3. Запуск</h2>
         <p className="hint">
           Заполните поля и нажмите «Сохранить настройки». Потом — «Начать парсинг».
+          Бюджет вакансий: 1 ключ → 100, 2 → 120, 3 → 150, 4 → 200, 5 → 250.
           Результат: вкладки <code> hh_candidates</code> / <code>hh_qualified</code>.
         </p>
         {!formValid && (

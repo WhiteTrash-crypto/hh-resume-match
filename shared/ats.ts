@@ -1,16 +1,15 @@
-import OpenAI from 'openai'
 import { normalizeText, scoreQueryRelevance, tokenize } from './relevance'
 import type { AtsResult, Vacancy } from './types'
 
 /**
- * Weighted ATS inspired by open criteria (Resume Matcher / Affinda / ROP):
- * - Job title / search-key alignment (critical gate)
- * - Skills keyword overlap (rarer tokens weigh more)
- * - Seniority alignment
- * - Work mode preference
+ * Weighted open ATS (Resume Matcher / Affinda / ROP style).
+ * LLM scoring is disabled for now — heuristic only.
  *
- * Without OpenAI we use the heuristic; with OpenAI the LLM follows the same rubric,
- * then we still apply a hard query-relevance cap so wrong roles cannot qualify.
+ * Weights:
+ * - query/title alignment ~35%
+ * - skills keyword overlap ~40%
+ * - seniority ~15%
+ * - work mode ~10%
  */
 
 const WEIGHTS = {
@@ -34,46 +33,6 @@ const GENERIC = new Set([
   'our',
   'your',
 ])
-
-function buildPrompt(resumeText: string, vacancy: Vacancy, searchQueries: string[]): string {
-  const q = searchQueries.join(' | ') || '(не заданы)'
-  const rel = scoreQueryRelevance(searchQueries, vacancy)
-  return `Ты ATS-скорер вакансий HeadHunter.
-
-Поисковые ключи пользователя (целевая роль): ${q}
-Совпадение ключей с вакансией (предрасчёт): ${rel.score}/100 (${rel.detail})
-
-Резюме кандидата:
-"""
-${resumeText.slice(0, 12000)}
-"""
-
-Вакансия:
-title: ${vacancy.title}
-employer: ${vacancy.employer}
-location: ${vacancy.location}
-salary: ${vacancy.salary}
-experience: ${vacancy.experience}
-schedule: ${vacancy.schedule}
-url: ${vacancy.url}
-text:
-"""
-${vacancy.content.slice(0, 8000)}
-"""
-
-Рубрика (как в open-source ATS: title → skills → seniority):
-1) Title / role family vs поисковые ключи (вес ~35%). Если роль явно другая семья
-   (например ключ product manager, вакансия Backend Engineer) — score ≤ 40, redFlags=wrong_role.
-2) Skills overlap резюме ↔ требования вакансии (вес ~40%). Редкие навыки важнее общих слов.
-3) Seniority alignment (вес ~15%).
-4) Work mode remote/hybrid (вес ~10%), если не противоречит резюме.
-
-domainTier: A сильный fit ключ+скиллы, B частичный, C чужая роль или слабый fit.
-Не выдумывай факты.
-
-Верни ТОЛЬКО JSON:
-{"score":0,"domainTier":"A|B|C","role":"...","workMode":"remote|hybrid|office|unknown","reason":"...","redFlags":"..."}`
-}
 
 function extractSkillishTokens(text: string): string[] {
   return tokenize(text).filter((t) => t.length >= 3 && !GENERIC.has(t))
@@ -170,72 +129,12 @@ function heuristicScore(
   }
 }
 
-function applyQueryCap(result: AtsResult, vacancy: Vacancy, searchQueries: string[]): AtsResult {
-  const rel = scoreQueryRelevance(searchQueries, vacancy)
-  let score = result.score
-  const flags = new Set(
-    result.redFlags
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean),
-  )
-  if (rel.score < 45) {
-    score = Math.min(score, 40)
-    flags.add('wrong_role')
-  } else if (rel.score < 60) {
-    score = Math.min(score, 58)
-  }
-  const reason = result.reason.includes('query ')
-    ? result.reason
-    : `${result.reason} | query ${rel.score}/100 (${rel.detail})`
-  return {
-    ...result,
-    score,
-    redFlags: [...flags].join(', '),
-    reason,
-  }
-}
-
 export async function scoreVacancy(
   resumeText: string,
   vacancy: Vacancy,
   searchQueries: string[] = [],
 ): Promise<AtsResult> {
-  const queries = searchQueries.filter(Boolean)
-  const apiKey = process.env.OPENAI_API_KEY?.trim()
-  if (!apiKey) {
-    return heuristicScore(resumeText, vacancy, queries)
-  }
-
-  const model = process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini'
-  const client = new OpenAI({ apiKey })
-  const completion = await client.chat.completions.create({
-    model,
-    temperature: 0.2,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: 'Отвечай только валидным JSON без markdown.' },
-      { role: 'user', content: buildPrompt(resumeText, vacancy, queries) },
-    ],
-  })
-  const raw = completion.choices[0]?.message?.content || '{}'
-  let parsed: Partial<AtsResult> & { domainTier?: string }
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    parsed = { score: 0, reason: 'parse_error', redFlags: 'bad_llm_json' }
-  }
-  const tier = String(parsed.domainTier || 'C').toUpperCase()
-  const result: AtsResult = {
-    vacancyId: vacancy.vacancyId,
-    score: Math.max(0, Math.min(100, Number(parsed.score) || 0)),
-    domainTier: tier === 'A' || tier === 'B' ? tier : 'C',
-    role: String(parsed.role || vacancy.title),
-    workMode: String(parsed.workMode || 'unknown'),
-    reason: String(parsed.reason || ''),
-    redFlags: String(parsed.redFlags || ''),
-  }
-  return applyQueryCap(result, vacancy, queries)
+  return heuristicScore(resumeText, vacancy, searchQueries.filter(Boolean))
 }
 
 export async function scoreVacancies(

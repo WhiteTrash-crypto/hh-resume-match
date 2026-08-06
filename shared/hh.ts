@@ -1,4 +1,9 @@
 import { ApifyClient } from 'apify-client'
+import {
+  distributeVacancyBudget,
+  pagesForVacancyAllotment,
+  vacancyBudgetForKeyCount,
+} from './budget'
 import type { Vacancy } from './types'
 
 const EXPERIENCE_LABELS: Record<string, string> = {
@@ -50,13 +55,13 @@ export function parseSearchQueries(raw: string): string[] {
 }
 
 /**
- * Split a fixed page budget across N queries.
- * Sum(pages) === totalPages always — never N× more work for N keys.
+ * Split a vacancy budget across N queries, then convert each allotment to pages.
+ * @deprecated prefer distributeVacancyBudget + pagesForVacancyAllotment
  */
 export function distributePageBudget(totalPages: number, queryCount: number): number[] {
   const n = Math.max(0, queryCount)
   if (n === 0) return []
-  const total = Math.max(1, Math.min(5, Math.floor(totalPages) || 5))
+  const total = Math.max(1, Math.min(10, Math.floor(totalPages) || 1))
   const base = Math.floor(total / n)
   const rem = total % n
   return Array.from({ length: n }, (_, i) => base + (i < rem ? 1 : 0))
@@ -149,8 +154,15 @@ export async function startHhCollect(opts: {
   query: string
   remoteOnly: boolean
   periodDays: number
-  maxPages: number
-}): Promise<{ runIds: string[]; queries: string[]; pagesPerQuery: number[] }> {
+  /** Optional override; by default derived from key count. */
+  vacancyBudget?: number
+}): Promise<{
+  runIds: string[]
+  queries: string[]
+  pagesPerQuery: number[]
+  vacanciesPerQuery: number[]
+  vacancyBudget: number
+}> {
   const token = process.env.APIFY_TOKEN
   if (!token) throw new Error('APIFY_TOKEN не задан')
   const actor = process.env.APIFY_ACTOR
@@ -159,7 +171,12 @@ export async function startHhCollect(opts: {
   const queries = parseSearchQueries(opts.query)
   if (!queries.length) throw new Error('Укажите хотя бы один поисковый ключ')
 
-  const pagesPerQuery = distributePageBudget(opts.maxPages || 5, queries.length)
+  const vacancyBudget =
+    opts.vacancyBudget && opts.vacancyBudget > 0
+      ? Math.floor(opts.vacancyBudget)
+      : vacancyBudgetForKeyCount(queries.length)
+  const vacanciesPerQuery = distributeVacancyBudget(vacancyBudget, queries.length)
+  const pagesPerQuery = vacanciesPerQuery.map(pagesForVacancyAllotment)
   const client = new ApifyClient({ token })
   const runIds: string[] = []
 
@@ -186,7 +203,7 @@ export async function startHhCollect(opts: {
     throw new Error('Бюджет страниц слишком мал для выбранных ключей')
   }
 
-  return { runIds, queries, pagesPerQuery }
+  return { runIds, queries, pagesPerQuery, vacanciesPerQuery, vacancyBudget }
 }
 
 export async function getHhCollectStatus(runIds: string[]): Promise<{

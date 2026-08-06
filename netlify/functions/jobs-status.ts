@@ -1,4 +1,5 @@
 import { scoreVacancy } from '../../shared/ats'
+import { vacancyBudgetForKeyCount } from '../../shared/budget'
 import { applyHardFilters } from '../../shared/filters'
 import { getHhCollectStatus, parseSearchQueries } from '../../shared/hh'
 import { QUERY_RELEVANCE_MIN, scoreQueryRelevance } from '../../shared/relevance'
@@ -8,7 +9,6 @@ import type { AtsResult, Vacancy } from '../../shared/types'
 import { json, withApi } from './_lib'
 
 const SCORE_BATCH = 3
-const MAX_SCORE = 250
 const QUALIFIED_MIN = 65
 
 export default withApi(async (_req, session) => {
@@ -22,6 +22,9 @@ export default withApi(async (_req, session) => {
     job.queries?.length
       ? job.queries
       : parseSearchQueries(session.config.query || '')
+  const vacancyCap =
+    job.vacancyBudget ||
+    vacancyBudgetForKeyCount(searchQueries.length || 1)
 
   if (!runIds.length || job.status === 'idle' || job.status === 'done' || job.status === 'error') {
     return json({ job })
@@ -50,11 +53,11 @@ export default withApi(async (_req, session) => {
         const rel = scoreQueryRelevance(searchQueries, v)
         if (rel.score < QUERY_RELEVANCE_MIN) continue
         filtered.push(v)
+        if (filtered.length >= vacancyCap) break
       }
-      const capped = filtered.slice(0, MAX_SCORE)
-      session.pipeline = { vacancies: capped, scores: [], cursor: 0 }
+      session.pipeline = { vacancies: filtered, scores: [], cursor: 0 }
       job.status = 'scoring'
-      job.message = `ATS-скоринг 0/${capped.length}`
+      job.message = `ATS-скоринг 0/${filtered.length} (бюджет ${vacancyCap})`
       job.stats = {
         fetched: items.length,
         afterHardFilter: filtered.length,

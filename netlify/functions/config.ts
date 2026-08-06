@@ -63,10 +63,7 @@ export default withApi(async (req, session) => {
   if (body.periodDays !== undefined) {
     session.config.periodDays = Math.max(1, Math.min(30, Number(body.periodDays) || 7))
   }
-  if (body.maxPages !== undefined) {
-    // Fixed total page budget (5 pages × 50 = 250 vacancies for the whole run)
-    session.config.maxPages = Math.max(1, Math.min(5, Number(body.maxPages) || 5))
-  }
+  // maxPages is derived server-side from key count → vacancy budget
 
   await saveSession(session)
   const readiness = isReadyToParse(session)

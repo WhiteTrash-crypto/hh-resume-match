@@ -77,7 +77,7 @@ export function emptySession(id: string): SessionData {
       query: '',
       remoteOnly: true,
       periodDays: 7,
-      maxPages: 5,
+      maxPages: 0,
     },
     job: {
       id: '',
