@@ -12,11 +12,16 @@ export function setBlobsMode(enabled: boolean): void {
   forceBlobs = enabled
 }
 
-function useLocal(): boolean {
+/** Shared by sessions + access-keys stores. */
+export function useLocalBlobFallback(): boolean {
   if (forceBlobs) return false
   if (process.env.AWS_LAMBDA_FUNCTION_NAME) return false
   if (process.env.NETLIFY === 'true' && process.env.NETLIFY_DEV !== 'true') return false
   return true
+}
+
+function useLocal(): boolean {
+  return useLocalBlobFallback()
 }
 
 function blobsStore() {

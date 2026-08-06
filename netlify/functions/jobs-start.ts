@@ -1,4 +1,9 @@
 import { v4 as uuid } from 'uuid'
+import {
+  consumeAccessKey,
+  peekAccessKey,
+  refundAccessKey,
+} from '../../shared/accessKeys'
 import { vacancyBudgetForKeyCount } from '../../shared/budget'
 import { parseSearchQueries, startHhCollect } from '../../shared/hh'
 import { isReadyToParse, saveSession } from '../../shared/store'
@@ -7,6 +12,36 @@ import { json, withApi } from './_lib'
 export default withApi(async (req, session) => {
   if (req.method !== 'POST') {
     return json({ error: 'Method not allowed' }, { status: 405 })
+  }
+
+  if (!session.access?.keyHash) {
+    return json(
+      {
+        error: 'Нужен ключ доступа',
+        code: 'locked',
+        access: { unlocked: false, usesLeft: 0, usesTotal: 0 },
+      },
+      { status: 401 },
+    )
+  }
+
+  const ledger = await peekAccessKey(session.access.keyHash)
+  const usesLeft = ledger?.usesLeft ?? session.access.usesLeft
+  if (!ledger || usesLeft <= 0) {
+    session.access.usesLeft = 0
+    await saveSession(session)
+    return json(
+      {
+        error: 'Ключ истёк — лимит запросов исчерпан',
+        code: 'expired',
+        access: {
+          unlocked: true,
+          usesLeft: 0,
+          usesTotal: session.access.usesTotal || ledger?.usesTotal || 2,
+        },
+      },
+      { status: 403 },
+    )
   }
 
   const readiness = isReadyToParse(session)
@@ -25,6 +60,25 @@ export default withApi(async (req, session) => {
     return json({ error: 'Укажите хотя бы один поисковый ключ' }, { status: 400 })
   }
 
+  const consumed = await consumeAccessKey(session.access.keyHash)
+  if (!consumed.ok) {
+    return json(
+      {
+        error: consumed.error,
+        code: consumed.code,
+        access: {
+          unlocked: true,
+          usesLeft: 0,
+          usesTotal: session.access.usesTotal,
+        },
+      },
+      { status: 403 },
+    )
+  }
+  session.access.usesLeft = consumed.usesLeft
+  session.access.usesTotal = consumed.usesTotal
+  await saveSession(session)
+
   const vacancyBudget = vacancyBudgetForKeyCount(queries.length)
 
   try {
@@ -34,6 +88,7 @@ export default withApi(async (req, session) => {
       periodDays: session.config.periodDays || 7,
       vacancyBudget,
     })
+
     const plan = queries
       .map((q, i) => `${q}→${vacanciesPerQuery[i] || 0} вак. (~${pagesPerQuery[i] || 0} стр.)`)
       .join(', ')
@@ -50,8 +105,20 @@ export default withApi(async (req, session) => {
     session.config.maxPages = pagesPerQuery.reduce((a, b) => a + b, 0)
     session.pipeline = undefined
     await saveSession(session)
-    return json({ job: session.job })
+    return json({
+      job: session.job,
+      access: {
+        unlocked: true,
+        usesLeft: consumed.usesLeft,
+        usesTotal: consumed.usesTotal,
+      },
+    })
   } catch (e) {
+    const refunded = await refundAccessKey(session.access.keyHash)
+    if (refunded && session.access) {
+      session.access.usesLeft = refunded.usesLeft
+      session.access.usesTotal = refunded.usesTotal
+    }
     session.job = {
       id: uuid(),
       status: 'error',

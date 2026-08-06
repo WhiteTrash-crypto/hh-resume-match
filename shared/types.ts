@@ -52,6 +52,13 @@ export type SessionData = {
   resumeTexts: Record<string, string>
   config: Partial<SearchConfig>
   job: JobState
+  /** Access-key unlock bound to this browser session */
+  access?: {
+    keyHash: string
+    usesLeft: number
+    usesTotal: number
+    unlockedAt: string
+  }
   /** Temporary pipeline buffer */
   pipeline?: {
     vacancies: Vacancy[]

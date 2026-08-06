@@ -286,6 +286,36 @@ input.invalid:focus {
   max-width: 100%;
 }
 
+.access-panel {
+  max-width: 28rem;
+}
+
+.access-meta {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.9rem;
+}
+
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(6, 10, 16, 0.72);
+  backdrop-filter: blur(6px);
+}
+
+.modal {
+  width: min(420px, 100%);
+  margin: 0;
+}
+
+.modal h2 {
+  margin-top: 0;
+}
+
 @media (max-width: 639px) {
   .app {
     width: min(980px, calc(100% - 1.25rem));
