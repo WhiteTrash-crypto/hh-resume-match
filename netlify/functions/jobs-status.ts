@@ -1,13 +1,15 @@
 import { scoreVacancy } from '../../shared/ats'
+import { vacancyBudgetForKeyCount } from '../../shared/budget'
 import { applyHardFilters } from '../../shared/filters'
-import { getHhCollectStatus } from '../../shared/hh'
+import { getHhCollectStatus, parseSearchQueries } from '../../shared/hh'
+import { QUERY_RELEVANCE_MIN, scoreQueryRelevance } from '../../shared/relevance'
 import { writeResults } from '../../shared/sheets'
 import { saveSession } from '../../shared/store'
 import type { AtsResult, Vacancy } from '../../shared/types'
 import { json, withApi } from './_lib'
 
 const SCORE_BATCH = 3
-const MAX_SCORE = 250
+const QUALIFIED_MIN = 65
 
 export default withApi(async (_req, session) => {
   const job = session.job
@@ -16,6 +18,13 @@ export default withApi(async (_req, session) => {
     : job.apifyRunId
       ? [job.apifyRunId]
       : []
+  const searchQueries =
+    job.queries?.length
+      ? job.queries
+      : parseSearchQueries(session.config.query || '')
+  const vacancyCap =
+    job.vacancyBudget ||
+    vacancyBudgetForKeyCount(searchQueries.length || 1)
 
   if (!runIds.length || job.status === 'idle' || job.status === 'done' || job.status === 'error') {
     return json({ job })
@@ -40,12 +49,15 @@ export default withApi(async (_req, session) => {
 
       const filtered: Vacancy[] = []
       for (const v of items) {
-        if (applyHardFilters(v).ok) filtered.push(v)
+        if (!applyHardFilters(v).ok) continue
+        const rel = scoreQueryRelevance(searchQueries, v)
+        if (rel.score < QUERY_RELEVANCE_MIN) continue
+        filtered.push(v)
+        if (filtered.length >= vacancyCap) break
       }
-      const capped = filtered.slice(0, MAX_SCORE)
-      session.pipeline = { vacancies: capped, scores: [], cursor: 0 }
+      session.pipeline = { vacancies: filtered, scores: [], cursor: 0 }
       job.status = 'scoring'
-      job.message = `ATS-скоринг 0/${capped.length}`
+      job.message = `ATS-скоринг 0/${filtered.length} (бюджет ${vacancyCap})`
       job.stats = {
         fetched: items.length,
         afterHardFilter: filtered.length,
@@ -73,7 +85,7 @@ export default withApi(async (_req, session) => {
 
       const end = Math.min(pipe.cursor + SCORE_BATCH, pipe.vacancies.length)
       for (let i = pipe.cursor; i < end; i++) {
-        pipe.scores.push(await scoreVacancy(resumeText, pipe.vacancies[i]))
+        pipe.scores.push(await scoreVacancy(resumeText, pipe.vacancies[i], searchQueries))
       }
       pipe.cursor = end
       job.stats = {
@@ -111,7 +123,11 @@ export default withApi(async (_req, session) => {
       const qualified: Array<Vacancy & AtsResult> = []
       for (const v of pipe.vacancies) {
         const s = scoreMap.get(v.vacancyId)
-        if (s && s.score >= 65) qualified.push({ ...v, ...s })
+        if (!s || s.score < QUALIFIED_MIN) continue
+        if (s.redFlags.includes('wrong_role')) continue
+        const rel = scoreQueryRelevance(searchQueries, v)
+        if (rel.score < 60) continue
+        qualified.push({ ...v, ...s })
       }
 
       const written = await writeResults({

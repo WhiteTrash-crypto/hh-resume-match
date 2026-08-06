@@ -1,108 +1,130 @@
-import OpenAI from 'openai'
+import { normalizeText, scoreQueryRelevance, tokenize } from './relevance'
 import type { AtsResult, Vacancy } from './types'
 
-function buildPrompt(resumeText: string, vacancy: Vacancy): string {
-  return `Ты ATS-скорер вакансий HeadHunter для кандидата.
+/**
+ * Weighted open ATS (Resume Matcher / Affinda / ROP style).
+ * LLM scoring is disabled for now — heuristic only.
+ *
+ * Weights:
+ * - query/title alignment ~35%
+ * - skills keyword overlap ~40%
+ * - seniority ~15%
+ * - work mode ~10%
+ */
 
-Резюме кандидата:
-"""
-${resumeText.slice(0, 12000)}
-"""
+const WEIGHTS = {
+  queryTitle: 0.35,
+  skills: 0.4,
+  seniority: 0.15,
+  workMode: 0.1,
+} as const
 
-Вакансия:
-title: ${vacancy.title}
-employer: ${vacancy.employer}
-location: ${vacancy.location}
-salary: ${vacancy.salary}
-experience: ${vacancy.experience}
-schedule: ${vacancy.schedule}
-url: ${vacancy.url}
-text:
-"""
-${vacancy.content.slice(0, 8000)}
-"""
+const GENERIC = new Set([
+  ...tokenize(
+    'team work experience company business project projects развитие компания опыт работа команды команда задачи задача система системы клиент клиенты данные data soft skills communication',
+  ),
+  'and',
+  'the',
+  'for',
+  'with',
+  'you',
+  'are',
+  'will',
+  'our',
+  'your',
+])
 
-Критерии:
-- score 0–100, fit резюме к вакансии
-- domainTier: A (web3/crypto/fintech/edtech/B2B product), B (общий IT product/project), C (далеко)
-- Seniority max middle: senior/lead/head/директор/ведущий → score < 50 и redFlags
-- Prefer remote/hybrid
-- Не выдумывай факты
-
-Верни ТОЛЬКО JSON:
-{"score":0,"domainTier":"A|B|C","role":"...","workMode":"remote|hybrid|office|unknown","reason":"...","redFlags":"..."}`
+function extractSkillishTokens(text: string): string[] {
+  return tokenize(text).filter((t) => t.length >= 3 && !GENERIC.has(t))
 }
 
-/** Simple keyword overlap scorer when OPENAI_API_KEY is missing. */
-function heuristicScore(resumeText: string, vacancy: Vacancy): AtsResult {
-  const resume = resumeText.toLowerCase()
-  const blob = `${vacancy.title}\n${vacancy.content}`.toLowerCase()
-  const title = vacancy.title.toLowerCase()
+/** Down-weight very common tokens (crude IDF stand-in). */
+function tokenWeight(token: string): number {
+  if (token.length >= 8) return 1.4
+  if (/[+#.]/.test(token) || /\d/.test(token)) return 1.5
+  if (token.length <= 3) return 0.5
+  return 1
+}
 
-  let score = 40
-  const redFlags: string[] = []
+function seniorityPenalty(resumeText: string, title: string): { score01: number; flag?: string } {
+  const seniorVac =
+    /\b(senior|staff|principal|lead|head|директор|ведущий|синьор|сеньор|chief)\b/i.test(title)
+  const seniorResume =
+    /\b(senior|staff|principal|lead|head|директор|ведущий|синьор|сеньор|chief)\b/i.test(
+      resumeText,
+    )
+  if (seniorVac && !seniorResume) return { score01: 0.25, flag: 'seniority' }
+  if (!seniorVac && seniorResume) return { score01: 0.85 }
+  return { score01: 1 }
+}
 
-  if (/senior|staff|principal|lead product|head of product|директор по продукту|ведущий/.test(title)) {
-    score -= 25
-    redFlags.push('seniority')
-  }
+function workModeScore01(vacancy: Vacancy, resumeText: string): { score01: number; mode: string } {
+  const blob = `${vacancy.schedule} ${vacancy.content}`.toLowerCase()
+  let mode = 'unknown'
+  if (/remote|удал/.test(blob)) mode = 'remote'
+  else if (/hybrid|гибрид/.test(blob)) mode = 'hybrid'
+  else if (/офис|office|полный день/.test(blob)) mode = 'office'
 
-  const tokens = [
-    'product',
-    'продакт',
-    'project',
-    'проджект',
-    'roadmap',
-    'analytics',
-    'аналитик',
-    'а/b',
-    'jira',
-    'scrum',
-    'web3',
-    'crypto',
-    'крипто',
-    'fintech',
-    'финтех',
-    'edtech',
-    'saas',
-    'b2b',
-    'retention',
-    'funnel',
-    'воронк',
-  ]
+  const wantsRemote = /remote|удал|гибрид|hybrid/i.test(resumeText)
+  if (mode === 'remote' || mode === 'hybrid') return { score01: 1, mode }
+  if (mode === 'office' && wantsRemote) return { score01: 0.35, mode }
+  if (mode === 'office') return { score01: 0.55, mode }
+  return { score01: 0.5, mode }
+}
+
+function heuristicScore(
+  resumeText: string,
+  vacancy: Vacancy,
+  searchQueries: string[],
+): AtsResult {
+  const rel = scoreQueryRelevance(searchQueries, vacancy)
+  const queryTitle01 = rel.score / 100
+
+  const resumeSkills = extractSkillishTokens(resumeText).slice(0, 100)
+  const jobSkills = new Set(extractSkillishTokens(`${vacancy.title}\n${vacancy.content}`))
+  let hitWeight = 0
+  let maxWeight = 0
   let hits = 0
-  for (const t of tokens) {
-    if (resume.includes(t) && blob.includes(t)) {
+  for (const t of resumeSkills) {
+    const w = tokenWeight(t)
+    maxWeight += w
+    if (jobSkills.has(t) || normalizeText(vacancy.content).includes(t)) {
+      hitWeight += w
       hits += 1
-      score += 4
     }
   }
+  const skills01 = maxWeight > 0 ? Math.min(1, hitWeight / (maxWeight * 0.35)) : 0
+
+  const sen = seniorityPenalty(resumeText, vacancy.title)
+  const wm = workModeScore01(vacancy, resumeText)
+
+  let score = Math.round(
+    100 *
+      (WEIGHTS.queryTitle * queryTitle01 +
+        WEIGHTS.skills * skills01 +
+        WEIGHTS.seniority * sen.score01 +
+        WEIGHTS.workMode * wm.score01),
+  )
+
+  // Hard cap: wrong role family cannot enter qualified (≥65)
+  if (rel.score < 45) score = Math.min(score, 40)
+  else if (rel.score < 60) score = Math.min(score, 58)
+
+  const redFlags: string[] = []
+  if (rel.score < 45) redFlags.push('wrong_role')
+  if (sen.flag) redFlags.push(sen.flag)
 
   let domainTier: 'A' | 'B' | 'C' = 'C'
-  if (/web3|crypto|крипто|fintech|финтех|edtech|образован/.test(blob)) {
-    domainTier = 'A'
-    score += 8
-  } else if (/saas|b2b|product|продакт|project|проджект/.test(blob)) {
-    domainTier = 'B'
-    score += 4
-  }
-
-  let workMode = 'unknown'
-  if (/remote|удал/.test(blob)) workMode = 'remote'
-  else if (/hybrid|гибрид/.test(blob)) workMode = 'hybrid'
-  else if (/офис|office|полный день/.test(blob)) workMode = 'office'
-
-  if (workMode === 'remote' || workMode === 'hybrid') score += 5
-
-  score = Math.max(0, Math.min(100, score))
+  if (rel.score >= 70 && skills01 >= 0.45) domainTier = 'A'
+  else if (rel.score >= 50 && skills01 >= 0.25) domainTier = 'B'
 
   return {
     vacancyId: vacancy.vacancyId,
-    score,
+    score: Math.max(0, Math.min(100, score)),
     domainTier,
     role: vacancy.title,
-    workMode,
-    reason: `Эвристический ATS (без OpenAI): пересечение навыков ${hits}, tier ${domainTier}.`,
+    workMode: wm.mode,
+    reason: `ATS: query ${rel.score}/100 (${rel.detail}); skills hits=${hits} (${Math.round(skills01 * 100)}%); seniority ${Math.round(sen.score01 * 100)}%; mode ${wm.mode}.`,
     redFlags: redFlags.join(', '),
   }
 }
@@ -110,50 +132,20 @@ function heuristicScore(resumeText: string, vacancy: Vacancy): AtsResult {
 export async function scoreVacancy(
   resumeText: string,
   vacancy: Vacancy,
+  searchQueries: string[] = [],
 ): Promise<AtsResult> {
-  const apiKey = process.env.OPENAI_API_KEY?.trim()
-  if (!apiKey) {
-    return heuristicScore(resumeText, vacancy)
-  }
-
-  const model = process.env.OPENAI_MODEL?.trim() || 'gpt-4o-mini'
-  const client = new OpenAI({ apiKey })
-  const completion = await client.chat.completions.create({
-    model,
-    temperature: 0.2,
-    response_format: { type: 'json_object' },
-    messages: [
-      { role: 'system', content: 'Отвечай только валидным JSON без markdown.' },
-      { role: 'user', content: buildPrompt(resumeText, vacancy) },
-    ],
-  })
-  const raw = completion.choices[0]?.message?.content || '{}'
-  let parsed: Partial<AtsResult> & { domainTier?: string }
-  try {
-    parsed = JSON.parse(raw)
-  } catch {
-    parsed = { score: 0, reason: 'parse_error', redFlags: 'bad_llm_json' }
-  }
-  const tier = String(parsed.domainTier || 'C').toUpperCase()
-  return {
-    vacancyId: vacancy.vacancyId,
-    score: Math.max(0, Math.min(100, Number(parsed.score) || 0)),
-    domainTier: tier === 'A' || tier === 'B' ? tier : 'C',
-    role: String(parsed.role || vacancy.title),
-    workMode: String(parsed.workMode || 'unknown'),
-    reason: String(parsed.reason || ''),
-    redFlags: String(parsed.redFlags || ''),
-  }
+  return heuristicScore(resumeText, vacancy, searchQueries.filter(Boolean))
 }
 
 export async function scoreVacancies(
   resumeText: string,
   vacancies: Vacancy[],
+  searchQueries: string[] = [],
   onProgress?: (done: number, total: number) => Promise<void> | void,
 ): Promise<AtsResult[]> {
   const out: AtsResult[] = []
   for (let i = 0; i < vacancies.length; i++) {
-    out.push(await scoreVacancy(resumeText, vacancies[i]))
+    out.push(await scoreVacancy(resumeText, vacancies[i], searchQueries))
     if (onProgress) await onProgress(i + 1, vacancies.length)
   }
   return out

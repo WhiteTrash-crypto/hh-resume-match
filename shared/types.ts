@@ -29,6 +29,8 @@ export type JobState = {
   apifyRunId?: string
   apifyRunIds?: string[]
   queries?: string[]
+  /** Total vacancy budget for this run (by key count). */
+  vacancyBudget?: number
   startedAt?: string
   finishedAt?: string
   stats?: {

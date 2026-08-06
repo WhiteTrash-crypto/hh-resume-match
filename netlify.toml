@@ -6,7 +6,11 @@
 [build.environment]
   NODE_VERSION = "22"
   # Non-secret config keys often duplicated in docs/defaults — omit from scan
-  SECRETS_SCAN_OMIT_KEYS = "APIFY_ACTOR,OPENAI_MODEL,VITE_GOOGLE_SA_EMAIL,PUBLIC_GOOGLE_SA_EMAIL,GOOGLE_SA_PATH,GOOGLE_SA_JSON,GOOGLE_SA_JSON_BASE64,NETLIFY_DEV,NETLIFY_LOCAL"
+  SECRETS_SCAN_OMIT_KEYS = "APIFY_ACTOR,OPENAI_MODEL,VITE_GOOGLE_SA_EMAIL,PUBLIC_GOOGLE_SA_EMAIL,GOOGLE_SA_PATH,GOOGLE_SA_JSON,GOOGLE_SA_JSON_BASE64,NETLIFY_DEV,NETLIFY_LOCAL,VITE_TITLE_PREFIX"
+
+# Tab title prefix only when building the stage branch (not production/main)
+[context.stage.environment]
+  VITE_TITLE_PREFIX = "[STAGE] "
 
 [dev]
   command = "npm run dev:vite"

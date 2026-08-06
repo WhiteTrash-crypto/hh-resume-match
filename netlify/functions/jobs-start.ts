@@ -1,4 +1,5 @@
 import { v4 as uuid } from 'uuid'
+import { vacancyBudgetForKeyCount } from '../../shared/budget'
 import { parseSearchQueries, startHhCollect } from '../../shared/hh'
 import { isReadyToParse, saveSession } from '../../shared/store'
 import { json, withApi } from './_lib'
@@ -24,25 +25,29 @@ export default withApi(async (req, session) => {
     return json({ error: 'Укажите хотя бы один поисковый ключ' }, { status: 400 })
   }
 
+  const vacancyBudget = vacancyBudgetForKeyCount(queries.length)
+
   try {
-    const { runIds, pagesPerQuery } = await startHhCollect({
+    const { runIds, pagesPerQuery, vacanciesPerQuery } = await startHhCollect({
       query: session.config.query!,
       remoteOnly: session.config.remoteOnly !== false,
       periodDays: session.config.periodDays || 7,
-      maxPages: session.config.maxPages || 5,
+      vacancyBudget,
     })
     const plan = queries
-      .map((q, i) => `${q}→${pagesPerQuery[i] || 0}стр`)
+      .map((q, i) => `${q}→${vacanciesPerQuery[i] || 0} вак. (~${pagesPerQuery[i] || 0} стр.)`)
       .join(', ')
     session.job = {
       id: uuid(),
       status: 'collecting',
-      message: `Сбор hh.ru (${queries.length} ключ., бюджет ${session.config.maxPages || 5} стр.): ${plan}`,
+      message: `Сбор hh.ru (${queries.length} ключ., бюджет ${vacancyBudget} вак.): ${plan}`,
       apifyRunId: runIds[0],
       apifyRunIds: runIds,
       queries,
+      vacancyBudget,
       startedAt: new Date().toISOString(),
     }
+    session.config.maxPages = pagesPerQuery.reduce((a, b) => a + b, 0)
     session.pipeline = undefined
     await saveSession(session)
     return json({ job: session.job })
