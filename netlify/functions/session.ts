@@ -18,6 +18,7 @@ export default withApi(async (_req, session) => {
     config: {
       sheetUrl: session.config.sheetUrl || '',
       query: session.config.query || '',
+      regions: session.config.regions || '',
       remoteOnly: session.config.remoteOnly !== false,
       periodDays: session.config.periodDays || 7,
       maxPages: session.config.maxPages || 5,
