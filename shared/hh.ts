@@ -27,11 +27,8 @@ function buildSearchUrl(opts: {
   params.set('search_period', String(opts.periodDays))
   params.set('order_by', 'publication_time')
   params.set('items_on_page', '50')
+  // Russia-wide search driven only by the user's text keys (no hardcoded roles).
   params.append('area', '113')
-  params.append('professional_role', '73')
-  params.append('professional_role', '107')
-  params.append('experience', 'between1And3')
-  params.append('experience', 'between3And6')
   if (opts.remoteOnly) params.append('schedule', 'remote')
   return `https://hh.ru/search/vacancy?${params.toString()}`
 }
