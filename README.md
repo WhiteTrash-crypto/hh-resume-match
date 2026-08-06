@@ -28,6 +28,10 @@ npm run dev   # netlify dev → http://localhost:8888
 | `GOOGLE_SA_JSON` / `GOOGLE_SA_PATH` | service account (на Netlify — JSON) |
 | `PUBLIC_GOOGLE_SA_EMAIL` / `VITE_GOOGLE_SA_EMAIL` | email для шаринга таблицы |
 | `SESSION_SECRET` | резерв под подпись cookie |
+| `ACCESS_KEYS_SHEET_ID` | таблица ключей (A=ключ, B=остаток) + листы usage по каждому ключу |
+| `ACCESS_KEYS_SHEET_TAB` | вкладка со списком ключей (по умолчанию `Лист1`) |
+
+На каждый успешный старт парсинга в `ACCESS_KEYS_SHEET_ID` создаётся/дополняется лист с именем ключа: время, поисковые ключи, гео, удалёнка да/нет (резюме не пишутся).
 
 В Netlify UI добавьте те же переменные. Для `GOOGLE_SA_JSON` вставьте весь JSON одной строкой.
 

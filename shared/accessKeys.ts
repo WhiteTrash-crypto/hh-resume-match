@@ -1,4 +1,4 @@
-import { getSheetsClient } from './sheets'
+import { ensureSheet, getSheetsClient } from './sheets'
 
 export type AccessKeyRecord = {
   /** Plain key from column A */
@@ -13,7 +13,31 @@ export type AccessUnlockResult =
   | { ok: true; key: string; usesLeft: number }
   | { ok: false; code: 'invalid' | 'expired' | 'not_configured'; error: string }
 
+export type AccessUsageLog = {
+  key: string
+  queries: string[]
+  /** Raw regions field from the form */
+  regions: string
+  /** Resolved region names, or empty when no geo filter */
+  regionsLabel: string
+  remoteOnly: boolean
+  periodDays: number
+  usesLeft: number
+  jobId: string
+}
+
 const DEFAULT_KEYS_SHEET_ID = '1vxccqrxcPzX1dOK3LM_q9YRvjRvhdoPGDAt-OIicRNk'
+
+const USAGE_HEADERS = [
+  'started_at',
+  'queries',
+  'regions',
+  'regions_resolved',
+  'remote',
+  'period_days',
+  'uses_left',
+  'job_id',
+]
 
 export function accessKeysSheetId(): string {
   return (
@@ -25,6 +49,16 @@ export function accessKeysSheetId(): string {
 
 function accessKeysTab(): string {
   return process.env.ACCESS_KEYS_SHEET_TAB?.trim() || 'Лист1'
+}
+
+/** Google Sheet tab title for a key (≤100 chars, no forbidden symbols). */
+export function usageSheetTitleForKey(key: string): string {
+  const cleaned = (key || '')
+    .trim()
+    .replace(/[\\/?*[\]:]/g, '_')
+    .replace(/\s+/g, ' ')
+    .slice(0, 100)
+  return cleaned || 'unknown'
 }
 
 function parseUses(raw: unknown): number {
@@ -126,11 +160,41 @@ export async function consumeAccessKey(key: string): Promise<AccessUnlockResult>
   return { ok: true, key: rec.key, usesLeft: next }
 }
 
-/** Refund one use if Apify start failed after consume. */
+/** Refund one use if job start failed after consume. */
 export async function refundAccessKey(key: string): Promise<AccessKeyRecord | null> {
   const rec = await findKeyRow(key)
   if (!rec) return null
   const next = rec.usesLeft + 1
   await writeUsesLeft(rec.row, next)
   return { ...rec, usesLeft: next }
+}
+
+/**
+ * Append one usage row to a per-key sheet in the access-keys spreadsheet.
+ * Does not store resumes — only search params for tester analytics.
+ */
+export async function logAccessUsage(log: AccessUsageLog): Promise<void> {
+  const sheets = await getSheetsClient()
+  const spreadsheetId = accessKeysSheetId()
+  const title = usageSheetTitleForKey(log.key)
+  await ensureSheet(sheets, spreadsheetId, title, USAGE_HEADERS)
+  await sheets.spreadsheets.values.append({
+    spreadsheetId,
+    range: `${title}!A1`,
+    valueInputOption: 'USER_ENTERED',
+    requestBody: {
+      values: [
+        [
+          new Date().toISOString(),
+          log.queries.join(', '),
+          log.regions.trim() || '',
+          log.regionsLabel.trim() || 'все регионы',
+          log.remoteOnly ? 'да' : 'нет',
+          log.periodDays,
+          log.usesLeft,
+          log.jobId,
+        ],
+      ],
+    },
+  })
 }

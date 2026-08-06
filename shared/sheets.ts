@@ -77,8 +77,8 @@ export async function getSheetsClient() {
   return getSheets()
 }
 
-async function ensureSheet(
-  sheets: ReturnType<typeof google.sheets>,
+export async function ensureSheet(
+  sheets: Awaited<ReturnType<typeof getSheets>>,
   spreadsheetId: string,
   title: string,
   headers: string[],

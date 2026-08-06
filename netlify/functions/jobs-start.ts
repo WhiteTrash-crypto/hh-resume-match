@@ -1,6 +1,7 @@
 import { v4 as uuid } from 'uuid'
 import {
   consumeAccessKey,
+  logAccessUsage,
   peekAccessKey,
   refundAccessKey,
 } from '../../shared/accessKeys'
@@ -110,8 +111,9 @@ export default withApi(async (req, session) => {
       .filter(Boolean)
       .join(', ')
 
+    const jobId = uuid()
     session.job = {
-      id: uuid(),
+      id: jobId,
       status: 'collecting',
       message: `Сбор hh.ru (${queries.length} ключ., ${regionLabel || 'все регионы'}, бюджет ${vacancyBudget} вак.${plan.areaIds.length ? `, area=${plan.areaIds.join('|')}` : ', без area'}): ${planLabel}`,
       queries,
@@ -121,6 +123,22 @@ export default withApi(async (req, session) => {
     session.config.maxPages = plan.pagesPerQuery.reduce((a, b) => a + b, 0)
     session.pipeline = { vacancies: [], scores: [], cursor: 0, collect }
     await saveSession(session)
+
+    try {
+      await logAccessUsage({
+        key: consumed.key,
+        queries,
+        regions: session.config.regions || '',
+        regionsLabel: regionLabel,
+        remoteOnly: plan.remoteOnly,
+        periodDays: plan.periodDays,
+        usesLeft: consumed.usesLeft,
+        jobId,
+      })
+    } catch (e) {
+      console.error('logAccessUsage failed', e)
+    }
+
     return json({
       job: session.job,
       access: {
