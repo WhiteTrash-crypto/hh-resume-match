@@ -1,23 +1,36 @@
 import { scoreVacancy } from '../../shared/ats'
 import { vacancyBudgetForKeyCount } from '../../shared/budget'
 import { applyHardFilters } from '../../shared/filters'
-import { getHhCollectStatus, parseSearchQueries } from '../../shared/hh'
+import {
+  advanceHhCollect,
+  collectProgressLabel,
+  parseSearchQueries,
+  type HhCollectPlan,
+} from '../../shared/hh'
 import { QUERY_RELEVANCE_MIN, scoreQueryRelevance } from '../../shared/relevance'
 import { writeResults } from '../../shared/sheets'
 import { saveSession } from '../../shared/store'
-import type { AtsResult, Vacancy } from '../../shared/types'
+import type { AtsResult, HhCollectState, Vacancy } from '../../shared/types'
 import { json, withApi } from './_lib'
 
 const SCORE_BATCH = 3
 const QUALIFIED_MIN = 65
 
+function toPlan(collect: HhCollectState): HhCollectPlan {
+  return {
+    queries: collect.queries,
+    pagesPerQuery: collect.pagesPerQuery,
+    vacanciesPerQuery: collect.vacanciesPerQuery,
+    vacancyBudget: collect.vacancyBudget,
+    areaIds: collect.areaIds,
+    regionsResolved: [],
+    remoteOnly: collect.remoteOnly,
+    periodDays: collect.periodDays,
+  }
+}
+
 export default withApi(async (_req, session) => {
   const job = session.job
-  const runIds = job.apifyRunIds?.length
-    ? job.apifyRunIds
-    : job.apifyRunId
-      ? [job.apifyRunId]
-      : []
   const searchQueries =
     job.queries?.length
       ? job.queries
@@ -26,27 +39,47 @@ export default withApi(async (_req, session) => {
     job.vacancyBudget ||
     vacancyBudgetForKeyCount(searchQueries.length || 1)
 
-  if (!runIds.length || job.status === 'idle' || job.status === 'done' || job.status === 'error') {
+  if (job.status === 'idle' || job.status === 'done' || job.status === 'error') {
     return json({ job })
   }
 
   try {
     if (job.status === 'collecting') {
-      const { status, items, done, total } = await getHhCollectStatus(runIds)
-      if (status === 'RUNNING') {
-        job.message = `Сбор вакансий: ${done}/${total} запусков готово`
-        await saveSession(session)
-        return json({ job })
-      }
-      if (status !== 'SUCCEEDED' || !items) {
+      const pipe = session.pipeline
+      const collect = pipe?.collect
+      if (!pipe || !collect) {
         job.status = 'error'
-        job.error = `Apify: ${status}`
+        job.error = 'Нет плана сбора'
         job.message = 'Ошибка сбора'
         job.finishedAt = new Date().toISOString()
         await saveSession(session)
         return json({ job })
       }
 
+      const next = await advanceHhCollect(toPlan(collect), {
+        phase: collect.phase,
+        ids: collect.ids,
+        cards: collect.cards,
+        detailsDone: collect.detailsDone,
+        items: collect.items,
+      })
+
+      pipe.collect = {
+        ...collect,
+        phase: next.phase,
+        ids: next.ids,
+        cards: next.cards,
+        detailsDone: next.detailsDone,
+        items: next.items,
+      }
+      job.message = collectProgressLabel(next)
+
+      if (next.phase !== 'done') {
+        await saveSession(session)
+        return json({ job })
+      }
+
+      const items = next.items
       const filtered: Vacancy[] = []
       for (const v of items) {
         if (!applyHardFilters(v).ok) continue

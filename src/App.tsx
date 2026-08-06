@@ -15,6 +15,11 @@ type Job = {
   }
 }
 
+type AccessState = {
+  unlocked: boolean
+  usesLeft: number
+}
+
 type SessionPayload = {
   resumes: Resume[]
   config: {
@@ -29,9 +34,24 @@ type SessionPayload = {
   ready: boolean
   missing: string[]
   saEmail: string
+  access: AccessState
+}
+
+class ApiError extends Error {
+  code?: string
+  status: number
+  access?: AccessState
+  constructor(message: string, opts: { code?: string; status: number; access?: AccessState }) {
+    super(message)
+    this.code = opts.code
+    this.status = opts.status
+    this.access = opts.access
+  }
 }
 
 const MAX_KEYS = 5
+
+const emptyAccess: AccessState = { unlocked: false, usesLeft: 0 }
 
 const empty: SessionPayload = {
   resumes: [],
@@ -47,6 +67,7 @@ const empty: SessionPayload = {
   ready: false,
   missing: ['резюме', 'ссылка на Google Sheet'],
   saEmail: import.meta.env.VITE_GOOGLE_SA_EMAIL || '',
+  access: emptyAccess,
 }
 
 function countKeys(raw: string): number {
@@ -69,8 +90,18 @@ async function api<T>(path: string, init?: RequestInit): Promise<T> {
     credentials: 'include',
     ...init,
   })
-  const data = await res.json().catch(() => ({}))
-  if (!res.ok) throw new Error(data.error || `Ошибка ${res.status}`)
+  const data = (await res.json().catch(() => ({}))) as {
+    error?: string
+    code?: string
+    access?: AccessState
+  }
+  if (!res.ok) {
+    throw new ApiError(data.error || `Ошибка ${res.status}`, {
+      code: data.code,
+      status: res.status,
+      access: data.access,
+    })
+  }
   return data as T
 }
 
@@ -85,6 +116,11 @@ export default function App() {
   const [remoteOnly, setRemoteOnly] = useState(true)
   const [sheetTouched, setSheetTouched] = useState(false)
   const [queryTouched, setQueryTouched] = useState(false)
+  const [accessKey, setAccessKey] = useState('')
+  const [accessError, setAccessError] = useState('')
+  const [showExpiredModal, setShowExpiredModal] = useState(false)
+  const [modalKey, setModalKey] = useState('')
+  const [modalError, setModalError] = useState('')
 
   const queryKeyCount = useMemo(() => countKeys(query), [query])
   const queryTooMany = queryKeyCount > MAX_KEYS
@@ -93,10 +129,15 @@ export default function App() {
   const queryInvalid = queryTouched && (queryEmpty || queryTooMany)
   const formValid =
     isValidSheetUrl(sheetUrl) && !queryEmpty && !queryTooMany && session.resumes.length > 0
+  const unlocked = session.access?.unlocked === true
+  const usesLeft = session.access?.usesLeft ?? 0
 
   const refresh = useCallback(async () => {
     const data = await api<SessionPayload>('session')
-    setSession(data)
+    setSession({
+      ...data,
+      access: data.access || emptyAccess,
+    })
     setSheetUrl(data.config.sheetUrl || '')
     setQuery(data.config.query || '')
     setRegions(data.config.regions || '')
@@ -104,6 +145,41 @@ export default function App() {
     return data
   }, [])
 
+  async function submitAccessKey(raw: string, fromModal: boolean) {
+    const key = raw.trim()
+    if (!key) {
+      if (fromModal) setModalError('Введите ключ доступа')
+      else setAccessError('Введите ключ доступа')
+      return
+    }
+    setBusy(true)
+    if (fromModal) setModalError('')
+    else setAccessError('')
+    try {
+      const result = await api<{ access: AccessState }>('access-unlock', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key }),
+      })
+      setSession((s) => ({ ...s, access: result.access }))
+      if (fromModal) {
+        setShowExpiredModal(false)
+        setModalKey('')
+      } else {
+        setAccessKey('')
+      }
+      await refresh()
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : 'Ошибка ключа'
+      if (fromModal) setModalError(msg)
+      else setAccessError(msg)
+      if (err instanceof ApiError && err.code === 'expired') {
+        setShowExpiredModal(true)
+      }
+    } finally {
+      setBusy(false)
+    }
+  }
   useEffect(() => {
     refresh()
       .catch((e) => setError(e.message))
@@ -181,6 +257,11 @@ export default function App() {
     setBusy(true)
     setError('')
     try {
+      if (usesLeft <= 0) {
+        setShowExpiredModal(true)
+        setModalError('Ключ истёк — лимит запросов исчерпан')
+        return
+      }
       assertClientValid()
       await api('config', {
         method: 'POST',
@@ -193,10 +274,19 @@ export default function App() {
           periodDays: 7,
         }),
       })
-      await api('jobs-start', { method: 'POST' })
+      const started = await api<{ access?: AccessState }>('jobs-start', { method: 'POST' })
+      if (started.access) {
+        setSession((s) => ({ ...s, access: started.access! }))
+      }
       await refresh()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Ошибка запуска')
+      if (err instanceof ApiError && (err.code === 'expired' || err.code === 'locked')) {
+        setShowExpiredModal(true)
+        setModalError(err.message)
+        if (err.access) setSession((s) => ({ ...s, access: err.access! }))
+      } else {
+        setError(err instanceof Error ? err.message : 'Ошибка запуска')
+      }
     } finally {
       setBusy(false)
     }
@@ -206,6 +296,47 @@ export default function App() {
     return (
       <div className="app">
         <p className="lede">Загрузка сессии…</p>
+      </div>
+    )
+  }
+
+  if (!unlocked) {
+    return (
+      <div className="app">
+        <header className="hero">
+          <h1 className="brand">
+            Матч <span>HH</span>
+          </h1>
+          <p className="lede">Введите ключ доступа, чтобы продолжить.</p>
+        </header>
+        <section className="panel access-panel">
+          <h2>Ключ доступа</h2>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              void submitAccessKey(accessKey, false)
+            }}
+          >
+            <label>
+              Ключ
+              <input
+                type="password"
+                className="input-access"
+                autoComplete="off"
+                value={accessKey}
+                onChange={(e) => setAccessKey(e.target.value)}
+                disabled={busy}
+              />
+            </label>
+            {accessError && <p className="field-error">{accessError}</p>}
+            <div className="row">
+              <button className="btn" type="submit" disabled={busy || !accessKey.trim()}>
+                Войти
+              </button>
+            </div>
+          </form>
+        </section>
+        <p className="footer">made by Crucian Labs</p>
       </div>
     )
   }
@@ -220,6 +351,7 @@ export default function App() {
           Загрузите резюме, прикрепите Google Sheet — сервис соберёт вакансии с hh.ru, оценит ATS-fit
           и запишет результат в вашу таблицу. Без регистрации, всё держится на cookie-сессии.
         </p>
+        <p className="access-meta">Осталось запусков: {usesLeft}</p>
       </header>
 
       <div className="grid two">
@@ -308,10 +440,10 @@ export default function App() {
               <p className="field-error">Укажите хотя бы один ключ</p>
             )}
             <label>
-              Регионы (необязательно, через запятую)
+              Регионы / страны (необязательно, через запятую)
               <input
                 type="text"
-                placeholder="Москва, СПб, Казань"
+                placeholder="пусто = везде; напр. Москва, Алматы, ОАЭ, Польша"
                 value={regions}
                 onChange={(e) => setRegions(e.target.value)}
               />
@@ -366,6 +498,46 @@ export default function App() {
       </section>
 
       <p className="footer">made by Crucian Labs</p>
+
+      {showExpiredModal && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true">
+          <div className="modal panel">
+            <h2>Ключ истёк</h2>
+            {modalError && <p className="error">{modalError}</p>}
+            <form
+              onSubmit={(e) => {
+                e.preventDefault()
+                void submitAccessKey(modalKey, true)
+              }}
+            >
+              <label>
+                Новый ключ доступа
+                <input
+                  type="password"
+                  className="input-access"
+                  autoComplete="off"
+                  value={modalKey}
+                  onChange={(e) => setModalKey(e.target.value)}
+                  disabled={busy}
+                />
+              </label>
+              <div className="row">
+                <button className="btn" type="submit" disabled={busy || !modalKey.trim()}>
+                  Активировать
+                </button>
+                <button
+                  className="btn ghost"
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setShowExpiredModal(false)}
+                >
+                  Закрыть
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -9,7 +9,7 @@ export type SearchConfig = {
   sheetUrl: string
   sheetId: string
   query: string
-  /** Comma-separated regions (fuzzy → HH area ids). Empty = all Russia. */
+  /** Comma-separated regions/countries (fuzzy → HH area ids). Empty = no geo filter. */
   regions: string
   remoteOnly: boolean
   periodDays: number
@@ -27,9 +27,6 @@ export type JobState = {
     | 'done'
     | 'error'
   message: string
-  /** @deprecated use apifyRunIds */
-  apifyRunId?: string
-  apifyRunIds?: string[]
   queries?: string[]
   /** Total vacancy budget for this run (by key count). */
   vacancyBudget?: number
@@ -45,6 +42,22 @@ export type JobState = {
   error?: string
 }
 
+/** In-flight HH HTML collect state between status polls. */
+export type HhCollectState = {
+  queries: string[]
+  pagesPerQuery: number[]
+  vacanciesPerQuery: number[]
+  vacancyBudget: number
+  areaIds: string[]
+  remoteOnly: boolean
+  periodDays: number
+  phase: 'search' | 'details' | 'done'
+  ids: string[]
+  cards: Record<string, Record<string, unknown>>
+  detailsDone: number
+  items: Vacancy[]
+}
+
 export type SessionData = {
   id: string
   createdAt: string
@@ -54,11 +67,19 @@ export type SessionData = {
   resumeTexts: Record<string, string>
   config: Partial<SearchConfig>
   job: JobState
+  /** Access-key unlock bound to this browser session */
+  access?: {
+    /** Plain key (matches column A in keys sheet) */
+    key: string
+    usesLeft: number
+    unlockedAt: string
+  }
   /** Temporary pipeline buffer */
   pipeline?: {
     vacancies: Vacancy[]
     scores: AtsResult[]
     cursor: number
+    collect?: HhCollectState
   }
 }
 

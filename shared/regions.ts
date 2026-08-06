@@ -8,11 +8,64 @@ export type HhArea = {
 }
 
 /**
- * Curated HH areas (ids from https://api.hh.ru/areas/113).
- * Prefer city ids over oblasts when both exist.
+ * Curated HH areas (ids from https://api.hh.ru/areas and /areas/countries).
+ * Prefer city ids over oblasts when both exist. Empty user input → no area filter (worldwide).
  */
 export const HH_AREAS: HhArea[] = [
-  { id: '113', name: 'Россия', aliases: ['россия', 'рф', 'russia', 'ru', 'всяроссия', 'всерегионы'] },
+  // Countries
+  { id: '113', name: 'Россия', aliases: ['россия', 'рф', 'russia', 'ru', 'всяроссия'] },
+  { id: '40', name: 'Казахстан', aliases: ['казахстан', 'kz', 'kazakhstan'] },
+  { id: '16', name: 'Беларусь', aliases: ['беларусь', 'белоруссия', 'by', 'belarus'] },
+  { id: '97', name: 'Узбекистан', aliases: ['узбекистан', 'uz', 'uzbekistan'] },
+  { id: '9', name: 'Азербайджан', aliases: ['азербайджан', 'az', 'azerbaijan'] },
+  { id: '13', name: 'Армения', aliases: ['армения', 'am', 'armenia'] },
+  { id: '28', name: 'Грузия', aliases: ['грузия', 'ge', 'georgia'] },
+  { id: '48', name: 'Кыргызстан', aliases: ['кыргызстан', 'киргизия', 'kg', 'kyrgyzstan'] },
+  { id: '86', name: 'Таджикистан', aliases: ['таджикистан', 'tj', 'tajikistan'] },
+  { id: '93', name: 'Туркменистан', aliases: ['туркменистан', 'туркмения', 'tm', 'turkmenistan'] },
+  { id: '5', name: 'Украина', aliases: ['украина', 'ua', 'ukraine'] },
+  { id: '62', name: 'Молдова', aliases: ['молдова', 'молдавия', 'md', 'moldova'] },
+  { id: '85', name: 'США', aliases: ['сша', 'usa', 'us', 'америка', 'unitedstates'] },
+  { id: '21', name: 'Великобритания', aliases: ['великобритания', 'britain', 'uk', 'england', 'англия'] },
+  { id: '27', name: 'Германия', aliases: ['германия', 'germany', 'de', 'deutschland'] },
+  { id: '208', name: 'ОАЭ', aliases: ['оаэ', 'uae', 'эмираты', 'дубайстрана'] },
+  { id: '74', name: 'Польша', aliases: ['польша', 'poland', 'pl'] },
+  { id: '94', name: 'Турция', aliases: ['турция', 'turkey', 'tr', 'türkiye'] },
+  { id: '236', name: 'Кипр', aliases: ['кипр', 'cyprus', 'cy'] },
+  { id: '37', name: 'Испания', aliases: ['испания', 'spain', 'es'] },
+  { id: '38', name: 'Италия', aliases: ['италия', 'italy', 'it'] },
+  { id: '101', name: 'Франция', aliases: ['франция', 'france', 'fr'] },
+  { id: '45', name: 'Канада', aliases: ['канада', 'canada', 'ca'] },
+  { id: '50', name: 'Китай', aliases: ['китай', 'china', 'cn'] },
+  { id: '100', name: 'Финляндия', aliases: ['финляндия', 'finland', 'fi'] },
+  { id: '57', name: 'Латвия', aliases: ['латвия', 'latvia', 'lv'] },
+  { id: '59', name: 'Литва', aliases: ['литва', 'lithuania', 'lt'] },
+  { id: '109', name: 'Эстония', aliases: ['эстония', 'estonia', 'ee'] },
+  { id: '199', name: 'Чехия', aliases: ['чехия', 'czech', 'czechia', 'cz'] },
+  { id: '33', name: 'Израиль', aliases: ['израиль', 'israel', 'il'] },
+  { id: '111', name: 'Япония', aliases: ['япония', 'japan', 'jp'] },
+  { id: '110', name: 'Южная Корея', aliases: ['южнаякорея', 'корея', 'korea', 'kr', 'southkorea'] },
+  { id: '233', name: 'Сингапур', aliases: ['сингапур', 'singapore', 'sg'] },
+  { id: '6', name: 'Австралия', aliases: ['австралия', 'australia', 'au'] },
+  { id: '204', name: 'Новая Зеландия', aliases: ['новаязеландия', 'newzealand', 'nz'] },
+  { id: '211', name: 'ЮАР', aliases: ['юар', 'southafrica', 'za'] },
+  { id: '243', name: 'Бразилия', aliases: ['бразилия', 'brazil', 'br'] },
+  { id: '209', name: 'Индия', aliases: ['индия', 'india', 'in'] },
+  { id: '36', name: 'Ирландия', aliases: ['ирландия', 'ireland', 'ie'] },
+  { id: '65', name: 'Нидерланды', aliases: ['нидерланды', 'голландия', 'netherlands', 'nl', 'holland'] },
+  { id: '149', name: 'Швеция', aliases: ['швеция', 'sweden', 'se'] },
+  { id: '108', name: 'Швейцария', aliases: ['швейцария', 'switzerland', 'ch'] },
+  { id: '207', name: 'Норвегия', aliases: ['норвегия', 'norway', 'no'] },
+  { id: '30', name: 'Дания', aliases: ['дания', 'denmark', 'dk'] },
+  { id: '241', name: 'Португалия', aliases: ['португалия', 'portugal', 'pt'] },
+  { id: '200', name: 'Болгария', aliases: ['болгария', 'bulgaria', 'bg'] },
+  { id: '146', name: 'Сербия', aliases: ['сербия', 'serbia', 'rs'] },
+  { id: '18', name: 'Бельгия', aliases: ['бельгия', 'belgium', 'be'] },
+  { id: '7', name: 'Австрия', aliases: ['австрия', 'austria', 'at'] },
+  { id: '114', name: 'Венгрия', aliases: ['венгрия', 'hungary', 'hu'] },
+  { id: '234', name: 'Румыния', aliases: ['румыния', 'romania', 'ro'] },
+
+  // RU cities
   { id: '1', name: 'Москва', aliases: ['москва', 'мск', 'moscow', 'москве', 'москвы'] },
   {
     id: '2',
@@ -89,9 +142,24 @@ export const HH_AREAS: HhArea[] = [
   { id: '1381', name: 'Сургут', aliases: ['сургут'] },
   { id: '1641', name: 'Набережные Челны', aliases: ['набережныечелны', 'челны', 'набчелны'] },
   { id: '1753', name: 'Череповец', aliases: ['череповец'] },
+
+  // International cities
+  { id: '160', name: 'Алматы', aliases: ['алматы', 'алмаата', 'almaty'] },
+  { id: '159', name: 'Астана', aliases: ['астана', 'нурсултан', 'astana', 'nursultan'] },
+  { id: '205', name: 'Шымкент', aliases: ['шымкент', 'чимкент', 'shymkent'] },
+  { id: '1002', name: 'Минск', aliases: ['минск', 'minsk'] },
+  { id: '1007', name: 'Брест', aliases: ['брест', 'brest'] },
+  { id: '1005', name: 'Витебск', aliases: ['витебск', 'vitebsk'] },
+  { id: '1003', name: 'Гомель', aliases: ['гомель', 'gomel'] },
+  { id: '2759', name: 'Ташкент', aliases: ['ташкент', 'tashkent'] },
+  { id: '2778', name: 'Самарканд', aliases: ['самарканд', 'samarkand'] },
+  { id: '2492', name: 'Баку', aliases: ['баку', 'baku'] },
+  { id: '2758', name: 'Тбилиси', aliases: ['тбилиси', 'tbilisi'] },
+  { id: '2814', name: 'Батуми', aliases: ['батуми', 'batumi'] },
+  { id: '2760', name: 'Бишкек', aliases: ['бишкек', 'bishkek'] },
+  { id: '115', name: 'Киев', aliases: ['киев', 'київ', 'kyiv', 'kiev'] },
 ]
 
-export const DEFAULT_AREA_ID = '113'
 export const MAX_REGIONS = 8
 
 export type ResolvedRegion = {
@@ -166,7 +234,7 @@ export function resolveRegionToken(raw: string): ResolvedRegion | null {
   return { input, id: best.area.id, name: best.area.name }
 }
 
-/** Parse comma-separated region string → HH area ids. Empty → all Russia. */
+/** Parse comma-separated region string → HH area ids. Empty → no area filter (all regions). */
 export function resolveRegions(raw: string): ResolveRegionsResult {
   const parts = (raw || '')
     .split(',')
@@ -175,8 +243,8 @@ export function resolveRegions(raw: string): ResolveRegionsResult {
 
   if (!parts.length) {
     return {
-      resolved: [{ input: '', id: DEFAULT_AREA_ID, name: 'Россия' }],
-      areaIds: [DEFAULT_AREA_ID],
+      resolved: [],
+      areaIds: [],
       unresolved: [],
     }
   }

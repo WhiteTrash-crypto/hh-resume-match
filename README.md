@@ -11,7 +11,8 @@
 
 ```bash
 cp .env.example .env
-# заполните APIFY_TOKEN, OPENAI_API_KEY, GOOGLE_SA_PATH или GOOGLE_SA_JSON
+# заполните OPENAI_API_KEY, GOOGLE_SA_PATH или GOOGLE_SA_JSON
+# при VPN-check от hh.ru — HH_PROXY (RU residential)
 npm install
 npm run dev   # netlify dev → http://localhost:8888
 ```
@@ -20,8 +21,8 @@ npm run dev   # netlify dev → http://localhost:8888
 
 | Переменная | Назначение |
 |---|---|
-| `APIFY_TOKEN` | Apify для сбора hh.ru |
-| `APIFY_ACTOR` | id актора Apify для HH |
+| `HH_PROXY` | опционально: HTTP(S) прокси для hh.ru (`http://user:pass@host:port`) |
+| `HH_USER_AGENT` | опционально: User-Agent для запросов к hh.ru |
 | `OPENAI_API_KEY` | ATS-скоринг |
 | `OPENAI_MODEL` | модель OpenAI для ATS |
 | `GOOGLE_SA_JSON` / `GOOGLE_SA_PATH` | service account (на Netlify — JSON) |
