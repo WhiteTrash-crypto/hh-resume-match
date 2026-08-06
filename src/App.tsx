@@ -331,7 +331,6 @@ export default function App() {
         </header>
         <section className="panel access-panel">
           <h2>Ключ доступа</h2>
-          <p className="hint">Лимит запусков для ключа задаётся в таблице доступа.</p>
           <form
             onSubmit={(e) => {
               e.preventDefault()
@@ -342,8 +341,8 @@ export default function App() {
               Ключ
               <input
                 type="password"
+                className="input-access"
                 autoComplete="off"
-                placeholder="••••••••"
                 value={accessKey}
                 onChange={(e) => setAccessKey(e.target.value)}
                 disabled={busy}
@@ -525,9 +524,6 @@ export default function App() {
         <div className="modal-backdrop" role="dialog" aria-modal="true">
           <div className="modal panel">
             <h2>Ключ истёк</h2>
-            <p className="hint">
-              Лимит запросов по текущему ключу исчерпан. Введите новый ключ, чтобы продолжить.
-            </p>
             {modalError && <p className="error">{modalError}</p>}
             <form
               onSubmit={(e) => {
@@ -539,8 +535,8 @@ export default function App() {
                 Новый ключ доступа
                 <input
                   type="password"
+                  className="input-access"
                   autoComplete="off"
-                  placeholder="••••••••"
                   value={modalKey}
                   onChange={(e) => setModalKey(e.target.value)}
                   disabled={busy}

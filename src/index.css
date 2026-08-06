@@ -290,6 +290,37 @@ input.invalid:focus {
   max-width: 28rem;
 }
 
+.input-access {
+  width: 100%;
+  max-width: 100%;
+  border: 1px solid transparent;
+  background: #2a3140;
+  color: var(--ink);
+  border-radius: 999px;
+  padding: 0.85rem 1.15rem;
+  font-size: 1rem;
+  box-shadow: none;
+}
+
+.input-access:focus {
+  outline: 2px solid color-mix(in srgb, var(--accent) 45%, transparent);
+  border-color: transparent;
+  background: #323a4c;
+}
+
+.input-access:disabled {
+  opacity: 0.55;
+}
+
+/* Avoid browser autofill painting the field white */
+.input-access:-webkit-autofill,
+.input-access:-webkit-autofill:hover,
+.input-access:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--ink);
+  box-shadow: 0 0 0 1000px #2a3140 inset;
+  transition: background-color 99999s ease-out;
+}
+
 .access-meta {
   margin: 0;
   color: var(--muted);
