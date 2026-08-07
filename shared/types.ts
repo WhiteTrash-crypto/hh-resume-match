@@ -56,8 +56,9 @@ export type HhCollectState = {
   cards: Record<string, Record<string, unknown>>
   detailsDone: number
   items: Vacancy[]
-  /** Set when HH_SCRAPE_MODE=apify after actor start */
+  /** Apify actor run ids (one per search key) */
   apifyRunId?: string
+  apifyRunIds?: string[]
   /** Present if this job auto-fell back from Apify to fetch */
   fellBackFromApify?: string
 }

@@ -42,8 +42,9 @@ export type HhCollectProgress = {
   cards: Record<string, Record<string, unknown>>
   detailsDone: number
   items: Vacancy[]
-  /** Apify actor run id while HH_SCRAPE_MODE=apify */
+  /** Apify actor run id(s) while scrape mode = apify */
   apifyRunId?: string
+  apifyRunIds?: string[]
   /** Set when this job auto-fell back from Apify to fetch */
   fellBackFromApify?: string
 }
@@ -467,21 +468,30 @@ export async function advanceHhCollect(
         return { ...progress, phase: 'done' }
       }
 
-      if (!progress.apifyRunId) {
-        const { runId } = await startApifyCollect(plan)
+      const existingIds =
+        progress.apifyRunIds?.length
+          ? progress.apifyRunIds
+          : progress.apifyRunId
+            ? [progress.apifyRunId]
+            : []
+
+      if (!existingIds.length) {
+        const { runIds } = await startApifyCollect(plan)
         return {
           ...progress,
           phase: 'search',
-          apifyRunId: runId,
+          apifyRunIds: runIds,
+          apifyRunId: runIds[0],
         }
       }
 
-      const polled = await pollApifyCollect(progress.apifyRunId)
+      const polled = await pollApifyCollect(existingIds)
       if (polled.status !== 'SUCCEEDED' || !polled.items) {
         return {
           ...progress,
           phase: 'search',
-          apifyRunId: progress.apifyRunId,
+          apifyRunIds: existingIds,
+          apifyRunId: existingIds[0],
         }
       }
 
@@ -492,7 +502,8 @@ export async function advanceHhCollect(
         cards: {},
         detailsDone: capped.length,
         items: capped,
-        apifyRunId: progress.apifyRunId,
+        apifyRunIds: existingIds,
+        apifyRunId: existingIds[0],
         fellBackFromApify: progress.fellBackFromApify,
       }
     } catch (e) {
@@ -609,9 +620,14 @@ export async function advanceHhCollect(
 
 export function collectProgressLabel(progress: HhCollectProgress): string {
   let base: string
+  const runCount = progress.apifyRunIds?.length || (progress.apifyRunId ? 1 : 0)
   if (progress.phase === 'search') {
-    if (progress.apifyRunId) base = 'Сбор через Apify…'
-    else if (progress.fellBackFromApify) base = 'Поиск hh.ru (fallback fetch)…'
+    if (runCount > 0) {
+      base =
+        runCount > 1
+          ? `Сбор через Apify (${runCount} runs)…`
+          : 'Сбор через Apify…'
+    } else if (progress.fellBackFromApify) base = 'Поиск hh.ru (fallback fetch)…'
     else base = 'Поиск вакансий на hh.ru…'
   } else if (progress.phase === 'details') {
     base = `Загрузка описаний ${progress.detailsDone}/${progress.ids.length}`

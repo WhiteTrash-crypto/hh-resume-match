@@ -66,7 +66,7 @@ async function main() {
     polls++
     progress = await advanceHhCollect(plan, progress)
     console.log(
-      `poll ${polls}: phase=${progress.phase} run=${progress.apifyRunId || '—'} items=${progress.items.length}`,
+      `poll ${polls}: phase=${progress.phase} runs=${(progress.apifyRunIds || []).join(',') || progress.apifyRunId || '—'} items=${progress.items.length}`,
     )
     if (progress.phase !== 'done') {
       await new Promise((r) => setTimeout(r, 3000))

@@ -1,10 +1,10 @@
 /** Vacancy fetch budget by number of search keys (total for the whole run). */
 export const VACANCY_BUDGET_BY_KEYS: Record<number, number> = {
-  1: 100,
-  2: 120,
-  3: 150,
-  4: 200,
-  5: 250,
+  1: 200,
+  2: 300,
+  3: 450,
+  4: 600,
+  5: 750,
 }
 
 export const ITEMS_PER_PAGE = 50

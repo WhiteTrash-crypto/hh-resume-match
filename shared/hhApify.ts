@@ -1,6 +1,9 @@
 /**
  * Apify-backed HH vacancy collect (production path for Netlify).
  * Actor: APIFY_ACTOR (default abotapi/hh-ru-jobs-scraper)
+ *
+ * One actor run per search key (same pattern as earlier working prod runs).
+ * maxListings: 0 = unlimited — volume is controlled by maxPages (50 items/page).
  */
 
 import { ApifyClient } from 'apify-client'
@@ -21,7 +24,6 @@ function client(): ApifyClient {
   return new ApifyClient({ token: requireToken() })
 }
 
-/** Build one hh.ru search URL per query key (same params as HTML scrape). */
 export function planSearchUrls(plan: HhCollectPlan): string[] {
   return plan.queries.map((query) =>
     buildSearchUrl({
@@ -34,44 +36,55 @@ export function planSearchUrls(plan: HhCollectPlan): string[] {
   )
 }
 
-export async function startApifyCollect(plan: HhCollectPlan): Promise<{ runId: string }> {
+function buildRunInput(opts: {
+  url: string
+  maxPages: number
+}): Record<string, unknown> {
+  return {
+    mode: 'url',
+    urls: [opts.url],
+    // Per actor docs: maxPages is per URL; 50 listings/page on hh.ru
+    maxPages: Math.max(1, Math.min(40, opts.maxPages)),
+    // 0 = unlimited (capped only by maxPages). A positive cap caused short runs.
+    maxListings: 0,
+    fetchDetails: true,
+  }
+}
+
+/** Start one Apify run per search key. */
+export async function startApifyCollect(plan: HhCollectPlan): Promise<{ runIds: string[] }> {
   const urls = planSearchUrls(plan)
   if (!urls.length) throw new Error('Нет поисковых URL для Apify')
 
-  const maxPages = Math.max(1, ...plan.pagesPerQuery.filter((p) => p > 0), 1)
-  const maxListings = Math.max(1, plan.vacancyBudget)
+  const apify = client()
+  const actor = apify.actor(actorId())
+  const runIds: string[] = []
 
-  const run = await client()
-    .actor(actorId())
-    .start({
-      mode: 'url',
-      urls,
-      maxPages,
-      maxListings,
-      fetchDetails: true,
-    })
+  for (let i = 0; i < urls.length; i++) {
+    const maxPages = plan.pagesPerQuery[i] || 1
+    const input = buildRunInput({ url: urls[i], maxPages })
+    console.log(
+      'apify start',
+      JSON.stringify({
+        i,
+        query: plan.queries[i],
+        maxPages: input.maxPages,
+        allotment: plan.vacanciesPerQuery[i],
+        url: urls[i],
+      }),
+    )
+    const run = await actor.start(input)
+    if (!run?.id) throw new Error(`Не удалось запустить Apify для ключа «${plan.queries[i]}»`)
+    runIds.push(run.id)
+  }
 
-  if (!run?.id) throw new Error('Не удалось запустить Apify')
-  return { runId: run.id }
+  return { runIds }
 }
 
-export async function pollApifyCollect(runId: string): Promise<{
-  status: string
-  items?: Vacancy[]
-}> {
-  const apify = client()
-  const run = await apify.run(runId).get()
-  if (!run) return { status: 'UNKNOWN' }
-
-  const status = String(run.status || 'UNKNOWN')
-  if (status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
-    throw new Error(`Apify run ${runId} → ${status}`)
-  }
-  if (status !== 'SUCCEEDED') return { status }
-
-  const datasetId = run.defaultDatasetId
-  if (!datasetId) return { status, items: [] }
-
+async function readDatasetItems(
+  apify: ApifyClient,
+  datasetId: string,
+): Promise<Vacancy[]> {
   const items: Vacancy[] = []
   const seen = new Set<string>()
   const dataset = apify.dataset(datasetId)
@@ -90,6 +103,54 @@ export async function pollApifyCollect(runId: string): Promise<{
     offset += batch.length
     if (offset > 5000) break
   }
+  return items
+}
 
-  return { status, items }
+/** Poll all runs; return items only when every run SUCCEEDED. */
+export async function pollApifyCollect(runIds: string[]): Promise<{
+  status: string
+  items?: Vacancy[]
+  doneCount: number
+  total: number
+}> {
+  if (!runIds.length) return { status: 'SUCCEEDED', items: [], doneCount: 0, total: 0 }
+
+  const apify = client()
+  const statuses: string[] = []
+  const datasetIds: (string | null)[] = []
+
+  for (const runId of runIds) {
+    const run = await apify.run(runId).get()
+    if (!run) {
+      statuses.push('UNKNOWN')
+      datasetIds.push(null)
+      continue
+    }
+    const status = String(run.status || 'UNKNOWN')
+    statuses.push(status)
+    datasetIds.push(run.defaultDatasetId || null)
+    if (status === 'FAILED' || status === 'ABORTED' || status === 'TIMED-OUT') {
+      throw new Error(`Apify run ${runId} → ${status}`)
+    }
+  }
+
+  const doneCount = statuses.filter((s) => s === 'SUCCEEDED').length
+  const allDone = doneCount === runIds.length
+  if (!allDone) {
+    return { status: 'RUNNING', doneCount, total: runIds.length }
+  }
+
+  const merged: Vacancy[] = []
+  const seen = new Set<string>()
+  for (const datasetId of datasetIds) {
+    if (!datasetId) continue
+    const batch = await readDatasetItems(apify, datasetId)
+    for (const v of batch) {
+      if (seen.has(v.vacancyId)) continue
+      seen.add(v.vacancyId)
+      merged.push(v)
+    }
+  }
+
+  return { status: 'SUCCEEDED', items: merged, doneCount, total: runIds.length }
 }

@@ -63,6 +63,7 @@ export default withApi(async (_req, session) => {
         detailsDone: collect.detailsDone,
         items: collect.items,
         apifyRunId: collect.apifyRunId,
+        apifyRunIds: collect.apifyRunIds,
         fellBackFromApify: collect.fellBackFromApify,
       })
 
@@ -74,6 +75,7 @@ export default withApi(async (_req, session) => {
         detailsDone: next.detailsDone,
         items: next.items,
         apifyRunId: next.apifyRunId,
+        apifyRunIds: next.apifyRunIds,
         fellBackFromApify: next.fellBackFromApify,
       }
       job.message = collectProgressLabel(next)
