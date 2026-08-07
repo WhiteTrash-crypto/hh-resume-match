@@ -90,11 +90,16 @@ export default withApi(async (_req, session) => {
 
       const items = next.items
       const filtered: Vacancy[] = []
+      const scored: Array<{ v: Vacancy; rel: number }> = []
       for (const v of items) {
         if (!applyHardFilters(v).ok) continue
         const rel = scoreQueryRelevance(searchQueries, v)
         if (rel.score < QUERY_RELEVANCE_MIN) continue
-        filtered.push(v)
+        scored.push({ v, rel: rel.score })
+      }
+      scored.sort((a, b) => b.rel - a.rel)
+      for (const row of scored) {
+        filtered.push(row.v)
         if (filtered.length >= vacancyCap) break
       }
       session.pipeline = { vacancies: filtered, scores: [], cursor: 0 }
@@ -168,13 +173,21 @@ export default withApi(async (_req, session) => {
         if (!s || s.score < QUALIFIED_MIN) continue
         if (s.redFlags.includes('wrong_role')) continue
         const rel = scoreQueryRelevance(searchQueries, v)
-        if (rel.score < 60) continue
+        if (rel.score < 65) continue
         qualified.push({ ...v, ...s })
       }
 
+      // Best matches first in both sheets
+      qualified.sort((a, b) => b.score - a.score)
+      const candidatesOrdered = [...pipe.vacancies].sort((a, b) => {
+        const sa = scoreMap.get(a.vacancyId)?.score ?? 0
+        const sb = scoreMap.get(b.vacancyId)?.score ?? 0
+        return sb - sa
+      })
+
       const written = await writeResults({
         sheetId: session.config.sheetId!,
-        candidates: pipe.vacancies,
+        candidates: candidatesOrdered,
         qualified,
       })
 

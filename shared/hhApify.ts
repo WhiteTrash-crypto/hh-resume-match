@@ -25,15 +25,23 @@ function client(): ApifyClient {
 }
 
 export function planSearchUrls(plan: HhCollectPlan): string[] {
-  return plan.queries.map((query) =>
-    buildSearchUrl({
-      query,
+  // HH spelling: «фронтэнд» often under-matches; normalize for the search URL only.
+  const spelling: Record<string, string> = {
+    фронтэнд: 'фронтенд',
+    'фронт-энд': 'фронтенд',
+    'фронт энд': 'фронтенд',
+  }
+  return plan.queries.map((query) => {
+    const key = query.trim().toLowerCase().replace(/ё/g, 'е')
+    const text = spelling[key] || query
+    return buildSearchUrl({
+      query: text,
       remoteOnly: plan.remoteOnly,
       periodDays: plan.periodDays,
       areaIds: plan.areaIds,
       page: 0,
-    }),
-  )
+    })
+  })
 }
 
 function buildRunInput(opts: {

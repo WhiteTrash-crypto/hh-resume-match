@@ -106,12 +106,12 @@ function heuristicScore(
         WEIGHTS.workMode * wm.score01),
   )
 
-  // Hard cap: wrong role family cannot enter qualified (≥65)
-  if (rel.score < 45) score = Math.min(score, 40)
-  else if (rel.score < 60) score = Math.min(score, 58)
+  // Hard cap: wrong / weak role alignment cannot enter qualified (≥65)
+  if (rel.score < 50) score = Math.min(score, 35)
+  else if (rel.score < 65) score = Math.min(score, 55)
 
   const redFlags: string[] = []
-  if (rel.score < 45) redFlags.push('wrong_role')
+  if (rel.score < 50) redFlags.push('wrong_role')
   if (sen.flag) redFlags.push(sen.flag)
 
   let domainTier: 'A' | 'B' | 'C' = 'C'
