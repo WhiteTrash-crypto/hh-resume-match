@@ -8,15 +8,23 @@
     "dev:vite": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
-    "lint": "tsc -b --pretty false"
+    "lint": "tsc -b --pretty false",
+    "compare:hh": "tsx scripts/compare-hh-ui.ts",
+    "compare:hh:api": "tsx scripts/compare-hh-api.ts",
+    "compare:hh:diag": "tsx scripts/compare-hh-diag.ts",
+    "compare:hh:install": "playwright install chromium",
+    "smoke:hh:browser": "tsx scripts/smoke-hh-browser.ts",
+    "smoke:hh:apify": "tsx scripts/smoke-hh-apify.ts"
   },
   "dependencies": {
     "@netlify/blobs": "^9.1.2",
     "@netlify/functions": "^3.0.4",
+    "apify-client": "^2.24.0",
     "cookie": "^1.0.2",
     "googleapis": "^148.0.0",
     "openai": "^4.96.0",
     "pdfjs-dist": "^4.10.38",
+    "playwright": "^1.54.2",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "undici": "^7.29.0",
@@ -29,6 +37,7 @@
     "@types/react-dom": "^19.0.4",
     "@types/uuid": "^10.0.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "tsx": "^4.23.10",
     "typescript": "~5.7.3",
     "vite": "^6.2.0"
   },

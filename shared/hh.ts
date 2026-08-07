@@ -42,6 +42,10 @@ export type HhCollectProgress = {
   cards: Record<string, Record<string, unknown>>
   detailsDone: number
   items: Vacancy[]
+  /** Apify actor run id while HH_SCRAPE_MODE=apify */
+  apifyRunId?: string
+  /** Set when this job auto-fell back from Apify to fetch */
+  fellBackFromApify?: string
 }
 
 type FetchInit = RequestInit & { dispatcher?: unknown }
@@ -232,7 +236,8 @@ function parseVacancyDetailHtml(html: string, id: string): Record<string, unknow
   return raw
 }
 
-function buildSearchUrl(opts: {
+/** Public search URL builder — same params the product scrape uses. */
+export function buildSearchUrl(opts: {
   query: string
   remoteOnly: boolean
   periodDays: number
@@ -422,8 +427,13 @@ async function fetchVacancyDetail(id: string): Promise<Record<string, unknown>> 
 }
 
 /**
- * Advance collection by one poll slice: all search pages, then a batch of details.
+ * Advance collection by one poll slice.
  * Safe for Netlify timeouts — call repeatedly until phase === 'done'.
+ *
+ * Mode from getScrapeMode() (Blobs override → HH_SCRAPE_MODE env → fetch):
+ * - apify   → Apify actor (prod); fetchDetails skips local detail phase
+ * - browser → Playwright SERP (+ HH_PROXY); details via fetch
+ * - fetch   → HTML fetch SERP + details
  */
 export async function advanceHhCollect(
   plan: HhCollectPlan,
@@ -431,7 +441,81 @@ export async function advanceHhCollect(
 ): Promise<HhCollectProgress> {
   if (progress.phase === 'done') return progress
 
+  const { getScrapeMode, fallbackScrapeModeToFetch, shouldFallbackFromApify } =
+    await import('./scrapeMode')
+  const scrapeMode = await getScrapeMode()
+
+  if (scrapeMode === 'apify') {
+    const { startApifyCollect, pollApifyCollect } = await import('./hhApify')
+
+    const fallbackToFetch = async (reason: string): Promise<HhCollectProgress> => {
+      await fallbackScrapeModeToFetch(reason)
+      // Restart collect on fetch path (drop Apify run id).
+      return advanceHhCollect(plan, {
+        phase: 'search',
+        ids: [],
+        cards: {},
+        detailsDone: 0,
+        items: [],
+        fellBackFromApify: reason.slice(0, 300),
+      })
+    }
+
+    try {
+      if (progress.phase === 'details') {
+        // Apify returns full cards; should not land here.
+        return { ...progress, phase: 'done' }
+      }
+
+      if (!progress.apifyRunId) {
+        const { runId } = await startApifyCollect(plan)
+        return {
+          ...progress,
+          phase: 'search',
+          apifyRunId: runId,
+        }
+      }
+
+      const polled = await pollApifyCollect(progress.apifyRunId)
+      if (polled.status !== 'SUCCEEDED' || !polled.items) {
+        return {
+          ...progress,
+          phase: 'search',
+          apifyRunId: progress.apifyRunId,
+        }
+      }
+
+      const capped = polled.items.slice(0, plan.vacancyBudget)
+      return {
+        phase: 'done',
+        ids: capped.map((v) => v.vacancyId),
+        cards: {},
+        detailsDone: capped.length,
+        items: capped,
+        apifyRunId: progress.apifyRunId,
+        fellBackFromApify: progress.fellBackFromApify,
+      }
+    } catch (e) {
+      if (!shouldFallbackFromApify(e)) throw e
+      const reason = e instanceof Error ? e.message : String(e)
+      return fallbackToFetch(reason)
+    }
+  }
+
   if (progress.phase === 'search') {
+    if (scrapeMode === 'browser') {
+      const { collectSearchViaBrowser } = await import('./hhBrowser')
+      const { ids, cards } = await collectSearchViaBrowser(plan)
+      return {
+        phase: 'details',
+        ids,
+        cards,
+        detailsDone: 0,
+        items: [],
+        fellBackFromApify: progress.fellBackFromApify,
+      }
+    }
+
     const seen = new Set(progress.ids)
     const cards = { ...progress.cards }
     const ids = [...progress.ids]
@@ -485,6 +569,7 @@ export async function advanceHhCollect(
       cards: cappedCards,
       detailsDone: 0,
       items: [],
+      fellBackFromApify: progress.fellBackFromApify,
     }
   }
 
@@ -518,15 +603,25 @@ export async function advanceHhCollect(
     cards: progress.cards,
     detailsDone,
     items,
+    fellBackFromApify: progress.fellBackFromApify,
   }
 }
 
 export function collectProgressLabel(progress: HhCollectProgress): string {
-  if (progress.phase === 'search') return 'Поиск вакансий на hh.ru…'
-  if (progress.phase === 'details') {
-    return `Загрузка описаний ${progress.detailsDone}/${progress.ids.length}`
+  let base: string
+  if (progress.phase === 'search') {
+    if (progress.apifyRunId) base = 'Сбор через Apify…'
+    else if (progress.fellBackFromApify) base = 'Поиск hh.ru (fallback fetch)…'
+    else base = 'Поиск вакансий на hh.ru…'
+  } else if (progress.phase === 'details') {
+    base = `Загрузка описаний ${progress.detailsDone}/${progress.ids.length}`
+  } else {
+    base = `Собрано ${progress.items.length} вакансий`
   }
-  return `Собрано ${progress.items.length} вакансий`
+  if (progress.fellBackFromApify && progress.phase !== 'search') {
+    return `${base} · Apify→fetch`
+  }
+  return base
 }
 
 /** Lightweight probe for staging / health checks. */

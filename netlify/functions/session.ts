@@ -1,4 +1,5 @@
 import { peekAccessKey } from '../../shared/accessKeys'
+import { getScrapeModeInfo } from '../../shared/scrapeMode'
 import { isReadyToParse } from '../../shared/store'
 import { json, withApi } from './_lib'
 
@@ -12,6 +13,8 @@ export default withApi(async (_req, session) => {
     if (rec) usesLeft = rec.usesLeft
   }
 
+  const scrape = await getScrapeModeInfo()
+
   return json({
     id: session.id,
     resumes: session.resumes,
@@ -23,6 +26,8 @@ export default withApi(async (_req, session) => {
       periodDays: session.config.periodDays || 7,
       maxPages: session.config.maxPages || 5,
     },
+    scrapeMode: scrape.mode,
+    scrapeModeSource: scrape.source,
     job: session.job,
     ready: readiness.ok,
     missing: readiness.missing,

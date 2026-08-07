@@ -62,6 +62,8 @@ export default withApi(async (_req, session) => {
         cards: collect.cards,
         detailsDone: collect.detailsDone,
         items: collect.items,
+        apifyRunId: collect.apifyRunId,
+        fellBackFromApify: collect.fellBackFromApify,
       })
 
       pipe.collect = {
@@ -71,8 +73,13 @@ export default withApi(async (_req, session) => {
         cards: next.cards,
         detailsDone: next.detailsDone,
         items: next.items,
+        apifyRunId: next.apifyRunId,
+        fellBackFromApify: next.fellBackFromApify,
       }
       job.message = collectProgressLabel(next)
+      if (next.fellBackFromApify && !job.message.includes('Apify→fetch')) {
+        job.message = `${job.message} (Apify→fetch)`
+      }
 
       if (next.phase !== 'done') {
         await saveSession(session)

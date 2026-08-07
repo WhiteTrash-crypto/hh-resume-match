@@ -6,7 +6,7 @@
 [build.environment]
   NODE_VERSION = "22"
   # Non-secret config keys often duplicated in docs/defaults — omit from scan
-  SECRETS_SCAN_OMIT_KEYS = "OPENAI_MODEL,VITE_GOOGLE_SA_EMAIL,PUBLIC_GOOGLE_SA_EMAIL,GOOGLE_SA_PATH,GOOGLE_SA_JSON,GOOGLE_SA_JSON_BASE64,NETLIFY_DEV,NETLIFY_LOCAL,VITE_TITLE_PREFIX,ACCESS_KEYS_SHEET_ID,ACCESS_KEYS_SHEET_TAB,ACCESS_KEYS_SHEET,HH_USER_AGENT"
+  SECRETS_SCAN_OMIT_KEYS = "OPENAI_MODEL,VITE_GOOGLE_SA_EMAIL,PUBLIC_GOOGLE_SA_EMAIL,GOOGLE_SA_PATH,GOOGLE_SA_JSON,GOOGLE_SA_JSON_BASE64,NETLIFY_DEV,NETLIFY_LOCAL,VITE_TITLE_PREFIX,ACCESS_KEYS_SHEET_ID,ACCESS_KEYS_SHEET_TAB,ACCESS_KEYS_SHEET,HH_USER_AGENT,HH_SCRAPE_MODE,APIFY_ACTOR"
 
 # Tab title prefix only when building the stage branch (not production/main)
 [context.stage.environment]
@@ -21,6 +21,7 @@
 [functions]
   node_bundler = "esbuild"
   included_files = ["shared/**"]
+  external_node_modules = ["playwright"]
 
 [[redirects]]
   from = "/api/*"

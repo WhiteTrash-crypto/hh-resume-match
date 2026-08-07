@@ -42,7 +42,7 @@ export type JobState = {
   error?: string
 }
 
-/** In-flight HH HTML collect state between status polls. */
+/** In-flight HH collect state between status polls. */
 export type HhCollectState = {
   queries: string[]
   pagesPerQuery: number[]
@@ -56,6 +56,10 @@ export type HhCollectState = {
   cards: Record<string, Record<string, unknown>>
   detailsDone: number
   items: Vacancy[]
+  /** Set when HH_SCRAPE_MODE=apify after actor start */
+  apifyRunId?: string
+  /** Present if this job auto-fell back from Apify to fetch */
+  fellBackFromApify?: string
 }
 
 export type SessionData = {

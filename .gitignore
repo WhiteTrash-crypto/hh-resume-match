@@ -5,6 +5,9 @@
 .data/
 secrets/
 *.pem
+scripts/compare-hh-api-result.json
+scripts/compare-hh-ui-result.json
+scripts/.diag/
 
 # Build
 dist/
