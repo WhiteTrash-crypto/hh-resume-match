@@ -1,0 +1,32 @@
+{
+  "levels": {
+    "a1": 1,
+    "a2": 2,
+    "b1": 3,
+    "b2": 4,
+    "c1": 5,
+    "c2": 6,
+    "fluent": 7,
+    "native": 8,
+    "unknown": 0
+  },
+  "aliases": {
+    "english": ["english", "английский", "eng"],
+    "russian": ["russian", "русский", "ru"],
+    "german": ["german", "немецкий", "deutsch"],
+    "french": ["french", "французский"],
+    "spanish": ["spanish", "испанский"],
+    "chinese": ["chinese", "mandarin", "китайский", "путунхуа"],
+    "mandarin": ["mandarin", "chinese", "китайский"]
+  },
+  "level_phrases": {
+    "native": ["native", "родной", "mother tongue"],
+    "fluent": ["fluent", "fluency", "свободно", "свободное владение"],
+    "c2": ["c2", "proficiency"],
+    "c1": ["c1", "advanced", "business fluent", "профессиональный"],
+    "b2": ["b2", "upper-intermediate", "upper intermediate", "выше среднего", "professional working"],
+    "b1": ["b1", "intermediate", "средний"],
+    "a2": ["a2", "elementary", "базовый"],
+    "a1": ["a1", "beginner"]
+  }
+}

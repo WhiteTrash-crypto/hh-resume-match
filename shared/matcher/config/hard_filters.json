@@ -1,0 +1,18 @@
+{
+  "hard_filters": {
+    "required_language": { "enabled": true },
+    "location": { "enabled": true },
+    "work_authorization": { "enabled": true },
+    "employment_type": { "enabled": true },
+    "mandatory_certification": { "enabled": true },
+    "mandatory_domain": { "enabled": false },
+    "salary": { "enabled": false, "reject_if_below_candidate_min_percent": 20 },
+    "years_experience": { "enabled": false },
+    "critical_skill": { "enabled": false }
+  },
+  "policy": {
+    "reject_only_explicit_requirements": true,
+    "reject_unknown_requirement_type": false,
+    "low_confidence_disables_non_explicit_rejects": true
+  }
+}

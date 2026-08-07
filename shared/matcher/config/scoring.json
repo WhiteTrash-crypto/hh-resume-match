@@ -1,0 +1,82 @@
+{
+  "weights": {
+    "role": 0.25,
+    "responsibilities": 0.2,
+    "skills": 0.2,
+    "domain": 0.1,
+    "seniority": 0.1,
+    "experience": 0.05,
+    "management": 0.05,
+    "education_certifications": 0.05
+  },
+  "score_bands": {
+    "excellent": 85,
+    "good": 70,
+    "possible": 55,
+    "weak": 40
+  },
+  "feed": {
+    "primary_min_score": 70,
+    "secondary_min_score": 60,
+    "explore_min_score": 50
+  },
+  "requirement_weights": {
+    "required": 1.0,
+    "unknown": 0.6,
+    "preferred": 0.35
+  },
+  "skill_match_credit": {
+    "exact": 1.0,
+    "alias": 1.0,
+    "substitute": 0.85,
+    "same_group": 0.7,
+    "related": 0.4,
+    "missing": 0.0
+  },
+  "title_scores": {
+    "exact": 100,
+    "alias": 95,
+    "subtype": 90,
+    "parent_child": 80,
+    "strongly_related": 60,
+    "weakly_related": 30,
+    "unrelated": 0
+  },
+  "domain_scores": {
+    "exact": 100,
+    "parent_child": 80,
+    "close_adjacent": 60,
+    "weak_adjacent": 35,
+    "unrelated": 0
+  },
+  "seniority_matrix": {
+    "junior": { "junior": 100, "middle": 55, "middle_plus": 35, "senior": 20, "lead": 0, "head": 0 },
+    "middle": { "junior": 70, "middle": 100, "middle_plus": 90, "senior": 75, "lead": 35, "head": 10 },
+    "middle_plus": { "junior": 50, "middle": 100, "middle_plus": 100, "senior": 90, "lead": 60, "head": 25 },
+    "senior": { "junior": 30, "middle": 85, "middle_plus": 95, "senior": 100, "lead": 80, "head": 45 },
+    "lead": { "junior": 15, "middle": 55, "middle_plus": 75, "senior": 90, "lead": 100, "head": 75 },
+    "head": { "junior": 5, "middle": 30, "middle_plus": 50, "senior": 65, "lead": 90, "head": 100 },
+    "unknown": { "junior": 50, "middle": 50, "middle_plus": 50, "senior": 50, "lead": 50, "head": 50 }
+  },
+  "experience_scoring": {
+    "exact_or_above": 100,
+    "minus_1": 85,
+    "minus_2": 60,
+    "half": 35,
+    "below_half": 10,
+    "unknown": 50
+  },
+  "penalties": {
+    "missing_required_critical": 6,
+    "missing_required_normal": 3,
+    "missing_preferred": 0,
+    "max_total_missing_penalty": 20
+  },
+  "fuzzy_matching": {
+    "strong_threshold": 92,
+    "contextual_threshold": 85
+  },
+  "repetition": {
+    "max_multiplier": 1.2
+  }
+}

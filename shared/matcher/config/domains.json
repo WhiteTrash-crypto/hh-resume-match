@@ -1,0 +1,70 @@
+{
+  "technology": { "aliases": ["technology", "tech", "it"] },
+  "saas": { "parent": "technology", "aliases": ["saas", "b2b saas"] },
+  "b2b": { "aliases": ["b2b", "business to business"] },
+  "b2c": { "aliases": ["b2c", "business to consumer", "consumer"] },
+  "consumer_apps": { "parent": "b2c", "aliases": ["consumer apps", "consumer app"] },
+  "mobile": { "aliases": ["mobile", "мобильн", "ios", "android"] },
+  "web": { "aliases": ["web", "website", "веб"] },
+  "fintech": {
+    "parent": "technology",
+    "aliases": ["fintech", "финтех", "financial technology"],
+    "related": { "payments": 0.7, "banking": 0.7, "crypto": 0.5 }
+  },
+  "payments": {
+    "parent": "fintech",
+    "aliases": ["payments", "payment", "платежи", "эквайринг"],
+    "related": { "banking": 0.7, "crypto": 0.5, "ecommerce": 0.5 }
+  },
+  "banking": { "parent": "fintech", "aliases": ["banking", "bank", "банк"] },
+  "lending": { "parent": "fintech", "aliases": ["lending", "кредитование"] },
+  "trading": { "parent": "fintech", "aliases": ["trading", "трейдинг"] },
+  "crypto": {
+    "parent": "fintech",
+    "aliases": ["crypto", "cryptocurrency", "крипто", "криптовалют"],
+    "related": {
+      "blockchain": 1.0,
+      "web3": 1.0,
+      "wallet": 0.9,
+      "defi": 0.9,
+      "trading": 0.6,
+      "payments": 0.5
+    }
+  },
+  "web3": {
+    "parent": "crypto",
+    "aliases": ["web3", "web 3"],
+    "related": { "crypto": 1.0, "blockchain": 1.0 }
+  },
+  "blockchain": {
+    "parent": "crypto",
+    "aliases": ["blockchain", "блокчейн"],
+    "related": { "crypto": 1.0, "web3": 1.0 }
+  },
+  "wallet": {
+    "parent": "crypto",
+    "aliases": ["wallet", "crypto wallet", "кошелек", "кошелёк"],
+    "related": { "crypto": 0.9 }
+  },
+  "defi": { "parent": "crypto", "aliases": ["defi", "decentralized finance"] },
+  "exchange": { "parent": "crypto", "aliases": ["exchange", "crypto exchange", "биржа"] },
+  "gaming": { "aliases": ["gaming", "games", "игры"] },
+  "gambling": { "aliases": ["gambling", "betting"] },
+  "igaming": {
+    "aliases": ["igaming", "i-gaming", "online casino"],
+    "related": { "gambling": 0.9, "gaming": 0.5 }
+  },
+  "edtech": { "aliases": ["edtech", "education tech", "образован"] },
+  "healthtech": { "aliases": ["healthtech", "health tech", "medtech"] },
+  "ecommerce": { "aliases": ["ecommerce", "e-commerce", "ecom", "интернет-магазин"] },
+  "marketplace": { "aliases": ["marketplace", "маркетплейс"] },
+  "travel": { "aliases": ["travel", "туризм"] },
+  "media": { "aliases": ["media", "медиа"] },
+  "creator_economy": { "aliases": ["creator economy", "creators"] },
+  "adtech": { "aliases": ["adtech", "advertising tech"] },
+  "martech": { "aliases": ["martech", "marketing tech"] },
+  "cybersecurity": { "aliases": ["cybersecurity", "security", "информационная безопасность"] },
+  "ai": { "aliases": ["ai", "artificial intelligence", "машинное обучение", "ml"] },
+  "developer_tools": { "aliases": ["developer tools", "devtools", "developer experience"] },
+  "enterprise_software": { "aliases": ["enterprise", "enterprise software"] }
+}

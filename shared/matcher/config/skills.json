@@ -1,0 +1,173 @@
+{
+  "ga4": {
+    "aliases": ["ga4", "google analytics 4", "google analytics"],
+    "groups": ["product_analytics", "web_analytics"]
+  },
+  "amplitude": {
+    "aliases": ["amplitude"],
+    "groups": ["product_analytics"],
+    "substitutes": ["mixpanel", "ga4"]
+  },
+  "mixpanel": {
+    "aliases": ["mixpanel"],
+    "groups": ["product_analytics"],
+    "substitutes": ["amplitude", "ga4"]
+  },
+  "firebase_analytics": {
+    "aliases": ["firebase analytics", "google firebase analytics", "firebase"],
+    "groups": ["product_analytics", "mobile_analytics"]
+  },
+  "product_analytics": {
+    "aliases": [
+      "product analytics",
+      "product analytics tools",
+      "аналитика продукта",
+      "продуктовая аналитика"
+    ],
+    "groups": ["product_analytics"]
+  },
+  "sql": {
+    "aliases": ["sql", "postgresql", "postgres", "mysql", "t-sql"],
+    "groups": ["data", "analytics"],
+    "critical": true
+  },
+  "jira": {
+    "aliases": ["jira", "atlassian jira"],
+    "groups": ["project_tools"]
+  },
+  "confluence": {
+    "aliases": ["confluence"],
+    "groups": ["project_tools"]
+  },
+  "roadmap": {
+    "aliases": ["roadmap", "product roadmap", "дорожная карта"],
+    "groups": ["product_skills"]
+  },
+  "backlog_management": {
+    "aliases": ["backlog", "backlog management", "product backlog", "бэклог"],
+    "groups": ["product_skills"]
+  },
+  "api_integrations": {
+    "aliases": ["api", "api integrations", "rest api", "integrations", "интеграции"],
+    "groups": ["engineering"]
+  },
+  "ab_testing": {
+    "aliases": ["a/b testing", "ab testing", "a/b", "эксперименты", "experimentation"],
+    "groups": ["growth", "product_analytics"]
+  },
+  "react": {
+    "aliases": ["react", "react.js", "reactjs"],
+    "groups": ["frontend"],
+    "related": ["typescript", "javascript"]
+  },
+  "vue": {
+    "aliases": ["vue", "vue.js", "vuejs"],
+    "groups": ["frontend"]
+  },
+  "angular": {
+    "aliases": ["angular"],
+    "groups": ["frontend"]
+  },
+  "typescript": {
+    "aliases": ["typescript", "ts"],
+    "groups": ["frontend", "backend"]
+  },
+  "javascript": {
+    "aliases": ["javascript", "js", "es6"],
+    "groups": ["frontend", "backend"]
+  },
+  "nodejs": {
+    "aliases": ["node.js", "nodejs", "node"],
+    "groups": ["backend"]
+  },
+  "python": {
+    "aliases": ["python", "django", "fastapi", "flask"],
+    "groups": ["backend", "data"]
+  },
+  "java": {
+    "aliases": ["java", "spring", "spring boot"],
+    "groups": ["backend"],
+    "critical": true
+  },
+  "golang": {
+    "aliases": ["golang", "go lang"],
+    "groups": ["backend"]
+  },
+  "csharp": {
+    "aliases": ["c#", "csharp", ".net", "dotnet"],
+    "groups": ["backend"]
+  },
+  "php": {
+    "aliases": ["php", "laravel", "symfony"],
+    "groups": ["backend"]
+  },
+  "kotlin": {
+    "aliases": ["kotlin"],
+    "groups": ["mobile", "backend"]
+  },
+  "swift": {
+    "aliases": ["swift", "swiftui"],
+    "groups": ["mobile"]
+  },
+  "flutter": {
+    "aliases": ["flutter", "dart"],
+    "groups": ["mobile"]
+  },
+  "react_native": {
+    "aliases": ["react native", "react-native"],
+    "groups": ["mobile"]
+  },
+  "docker": {
+    "aliases": ["docker", "containers"],
+    "groups": ["devops"]
+  },
+  "kubernetes": {
+    "aliases": ["kubernetes", "k8s"],
+    "groups": ["devops"]
+  },
+  "aws": {
+    "aliases": ["aws", "amazon web services"],
+    "groups": ["cloud", "devops"]
+  },
+  "gcp": {
+    "aliases": ["gcp", "google cloud"],
+    "groups": ["cloud", "devops"]
+  },
+  "azure": {
+    "aliases": ["azure", "microsoft azure"],
+    "groups": ["cloud", "devops"]
+  },
+  "figma": {
+    "aliases": ["figma"],
+    "groups": ["design"]
+  },
+  "user_research": {
+    "aliases": ["user research", "customer interviews", "user interviews", "исследования пользователей"],
+    "groups": ["product_skills", "design"]
+  },
+  "pci_dss": {
+    "aliases": ["pci dss", "pci-dss", "pci"],
+    "groups": ["compliance"],
+    "critical": true
+  },
+  "selenium": {
+    "aliases": ["selenium", "cypress", "playwright"],
+    "groups": ["qa"]
+  },
+  "tableau": {
+    "aliases": ["tableau", "power bi", "looker"],
+    "groups": ["analytics", "bi"]
+  },
+  "excel": {
+    "aliases": ["excel", "google sheets", "spreadsheets"],
+    "groups": ["analytics"]
+  },
+  "scrum": {
+    "aliases": ["scrum", "agile", "kanban"],
+    "groups": ["project_tools"]
+  },
+  "prd": {
+    "aliases": ["prd", "product requirements document", "spec", "тз"],
+    "groups": ["product_skills"]
+  }
+}

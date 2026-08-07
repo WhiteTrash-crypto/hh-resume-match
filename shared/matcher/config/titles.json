@@ -1,0 +1,236 @@
+{
+  "product_manager": {
+    "family": "product",
+    "aliases": [
+      "product manager",
+      "product owner",
+      "digital product manager",
+      "web product manager",
+      "mobile product manager",
+      "software product manager",
+      "продакт",
+      "продакт-менеджер",
+      "продакт менеджер",
+      "менеджер продукта",
+      "менеджер по продукту",
+      "владелец продукта"
+    ],
+    "subtypes": [
+      "growth_product_manager",
+      "platform_product_manager",
+      "technical_product_manager",
+      "fintech_product_manager",
+      "crypto_product_manager"
+    ],
+    "related": {
+      "project_manager": 0.35,
+      "business_analyst": 0.3,
+      "program_manager": 0.25,
+      "product_analyst": 0.4
+    }
+  },
+  "growth_product_manager": {
+    "family": "product",
+    "aliases": ["growth product manager", "growth pm", "growth менеджер"]
+  },
+  "technical_product_manager": {
+    "family": "product",
+    "aliases": ["technical product manager", "technical pm", "tpm"]
+  },
+  "project_manager": {
+    "family": "project",
+    "aliases": [
+      "project manager",
+      "project management",
+      "проджект",
+      "проджект-менеджер",
+      "проджект менеджер",
+      "руководитель проектов",
+      "руководитель проекта",
+      "менеджер проектов",
+      "менеджер проекта"
+    ],
+    "related": {
+      "product_manager": 0.35,
+      "program_manager": 0.5,
+      "business_analyst": 0.3
+    }
+  },
+  "program_manager": {
+    "family": "project",
+    "aliases": ["program manager", "программа менеджер", "руководитель программы"]
+  },
+  "business_analyst": {
+    "family": "analytics",
+    "aliases": [
+      "business analyst",
+      "бизнес-аналитик",
+      "бизнес аналитик",
+      "ba"
+    ],
+    "related": {
+      "product_manager": 0.3,
+      "product_analyst": 0.5,
+      "data_analyst": 0.4
+    }
+  },
+  "product_analyst": {
+    "family": "analytics",
+    "aliases": ["product analyst", "продуктовый аналитик", "product analytics"]
+  },
+  "data_analyst": {
+    "family": "analytics",
+    "aliases": ["data analyst", "аналитик данных", "data analytics"]
+  },
+  "data_scientist": {
+    "family": "data",
+    "aliases": [
+      "data scientist",
+      "data science",
+      "ml engineer",
+      "machine learning engineer",
+      "дата саентист",
+      "машинное обучение"
+    ],
+    "related": { "data_analyst": 0.4 }
+  },
+  "frontend_engineer": {
+    "family": "frontend",
+    "aliases": [
+      "frontend",
+      "front-end",
+      "front end",
+      "frontend developer",
+      "frontend engineer",
+      "front-end developer",
+      "фронтенд",
+      "фронтэнд",
+      "фронтенд-разработчик",
+      "фронтенд разработчик",
+      "react developer",
+      "vue developer"
+    ],
+    "related": {
+      "fullstack_engineer": 0.55,
+      "backend_engineer": 0.15,
+      "mobile_engineer": 0.35
+    }
+  },
+  "backend_engineer": {
+    "family": "backend",
+    "aliases": [
+      "backend",
+      "back-end",
+      "back end",
+      "backend developer",
+      "backend engineer",
+      "бэкенд",
+      "бекенд",
+      "бэкенд-разработчик",
+      "бэкенд разработчик",
+      "java developer",
+      "python developer",
+      "golang developer",
+      "php developer"
+    ],
+    "related": {
+      "fullstack_engineer": 0.55,
+      "frontend_engineer": 0.15,
+      "devops_engineer": 0.35
+    }
+  },
+  "fullstack_engineer": {
+    "family": "fullstack",
+    "aliases": [
+      "fullstack",
+      "full-stack",
+      "full stack",
+      "fullstack developer",
+      "full stack developer",
+      "фулстек",
+      "фуллстек"
+    ],
+    "related": {
+      "frontend_engineer": 0.55,
+      "backend_engineer": 0.55
+    }
+  },
+  "mobile_engineer": {
+    "family": "mobile",
+    "aliases": [
+      "mobile developer",
+      "mobile engineer",
+      "android developer",
+      "ios developer",
+      "flutter developer",
+      "react native",
+      "мобильный разработчик"
+    ],
+    "related": { "frontend_engineer": 0.35 }
+  },
+  "qa_engineer": {
+    "family": "qa",
+    "aliases": [
+      "qa",
+      "qa engineer",
+      "test engineer",
+      "тестировщик",
+      "quality assurance",
+      "sdet",
+      "automation qa"
+    ]
+  },
+  "devops_engineer": {
+    "family": "devops",
+    "aliases": [
+      "devops",
+      "sre",
+      "platform engineer",
+      "infrastructure engineer",
+      "devops engineer",
+      "site reliability"
+    ],
+    "related": { "backend_engineer": 0.35 }
+  },
+  "designer": {
+    "family": "design",
+    "aliases": [
+      "designer",
+      "ux designer",
+      "ui designer",
+      "product designer",
+      "дизайнер",
+      "ux/ui",
+      "ui/ux"
+    ]
+  },
+  "marketing": {
+    "family": "marketing",
+    "aliases": [
+      "marketing",
+      "маркетолог",
+      "growth marketer",
+      "product marketing manager",
+      "smm",
+      "digital marketing"
+    ]
+  },
+  "sales": {
+    "family": "sales",
+    "aliases": [
+      "sales",
+      "account manager",
+      "sales manager",
+      "менеджер по продажам",
+      "менеджер продаж"
+    ]
+  },
+  "hr": {
+    "family": "hr",
+    "aliases": ["hr", "recruiter", "рекрутер", "people partner", "hr manager", "кадровик"]
+  },
+  "customer_success": {
+    "family": "cs",
+    "aliases": ["customer success", "cs manager", "customer support", "поддержка клиентов"]
+  }
+}

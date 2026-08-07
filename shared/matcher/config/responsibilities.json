@@ -1,0 +1,161 @@
+{
+  "product_strategy": {
+    "patterns": ["product strategy", "product vision", "стратегия продукта", "видение продукта"]
+  },
+  "roadmap": {
+    "patterns": [
+      "product roadmap",
+      "define roadmap",
+      "own roadmap",
+      "roadmap planning",
+      "roadmap prioritization",
+      "дорожная карта",
+      "roadmap"
+    ]
+  },
+  "backlog_management": {
+    "patterns": [
+      "manage backlog",
+      "own the backlog",
+      "product backlog",
+      "backlog prioritization",
+      "prioritize backlog",
+      "prioritize features",
+      "бэклог",
+      "backlog"
+    ]
+  },
+  "prioritization": {
+    "patterns": ["prioritization", "prioritize", "приоритизация", "расстановка приоритетов"]
+  },
+  "requirements_gathering": {
+    "patterns": ["requirements gathering", "gather requirements", "сбор требований"]
+  },
+  "requirements_documentation": {
+    "patterns": ["document requirements", "write prd", "requirements documentation", "документирование требований"]
+  },
+  "user_research": {
+    "patterns": ["user research", "customer interviews", "user interviews", "исследования пользователей"]
+  },
+  "product_discovery": {
+    "patterns": ["product discovery", "discovery", "дискавери"]
+  },
+  "competitive_research": {
+    "patterns": ["competitive research", "competitor analysis", "конкурентный анализ"]
+  },
+  "market_research": {
+    "patterns": ["market research", "market analysis", "исследование рынка"]
+  },
+  "analytics": {
+    "patterns": ["analytics", "product analytics", "аналитика", "data-driven"]
+  },
+  "funnel_analysis": {
+    "patterns": ["funnel analysis", "funnel", "воронка"]
+  },
+  "cohort_analysis": {
+    "patterns": ["cohort analysis", "cohorts", "когорты"]
+  },
+  "ab_testing": {
+    "patterns": ["a/b testing", "ab testing", "experimentation", "эксперименты"]
+  },
+  "retention": {
+    "patterns": ["retention", "удержание"]
+  },
+  "activation": {
+    "patterns": ["activation", "активация"]
+  },
+  "acquisition": {
+    "patterns": ["acquisition", "user acquisition", "привлечение"]
+  },
+  "monetization": {
+    "patterns": ["monetization", "монетизация"]
+  },
+  "pricing": {
+    "patterns": ["pricing", "ценообразование"]
+  },
+  "go_to_market": {
+    "patterns": ["go to market", "go-to-market", "gtm"]
+  },
+  "delivery_management": {
+    "patterns": ["delivery management", "delivery", "delivery of features"]
+  },
+  "release_management": {
+    "patterns": ["release management", "releases", "релизы"]
+  },
+  "project_management": {
+    "patterns": ["project management", "manage projects", "управление проектами"]
+  },
+  "stakeholder_management": {
+    "patterns": [
+      "stakeholder management",
+      "manage stakeholders",
+      "align stakeholders",
+      "stakeholder communication",
+      "работа со стейкхолдерами"
+    ]
+  },
+  "cross_functional_collaboration": {
+    "patterns": ["cross-functional", "cross functional", "кросс-функциональн"]
+  },
+  "engineering_collaboration": {
+    "patterns": ["work with engineers", "engineering collaboration", "работа с разработкой"]
+  },
+  "design_collaboration": {
+    "patterns": ["work with designers", "design collaboration", "работа с дизайном"]
+  },
+  "partner_management": {
+    "patterns": ["partner management", "partner integrations", "партнеры"]
+  },
+  "vendor_management": {
+    "patterns": ["vendor management", "vendors"]
+  },
+  "api_integrations": {
+    "patterns": ["api integrations", "integrations", "интеграции api", "интеграции"]
+  },
+  "payment_integrations": {
+    "patterns": ["payment integrations", "payments integration", "платежные интеграции"]
+  },
+  "risk_management": {
+    "patterns": ["risk management", "управление рисками"]
+  },
+  "compliance": {
+    "patterns": ["compliance", "регулятор", "комплаенс"]
+  },
+  "budget_management": {
+    "patterns": ["budget management", "budget ownership", "бюджет"]
+  },
+  "people_management": {
+    "patterns": [
+      "manage a team",
+      "people management",
+      "team of",
+      "direct reports",
+      "управление командой",
+      "руководство командой"
+    ]
+  },
+  "hiring": {
+    "patterns": ["hire", "hiring", "recruit", "наём", "найм", "подбор"]
+  },
+  "mentoring": {
+    "patterns": ["mentor", "mentoring", "наставничество", "менторство"]
+  },
+  "pnl": {
+    "patterns": ["p&l", "pnl", "profit and loss", "p and l"]
+  },
+  "frontend_development": {
+    "patterns": ["frontend development", "build ui", "spa", "разработка интерфейсов"]
+  },
+  "backend_development": {
+    "patterns": ["backend development", "api development", "microservices", "разработка сервисов"]
+  },
+  "testing": {
+    "patterns": ["write tests", "test automation", "qa", "автотесты", "тестирование"]
+  },
+  "ci_cd": {
+    "patterns": ["ci/cd", "continuous integration", "pipelines"]
+  },
+  "architecture": {
+    "patterns": ["system design", "architecture", "архитектура"]
+  }
+}

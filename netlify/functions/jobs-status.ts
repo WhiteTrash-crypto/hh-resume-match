@@ -14,7 +14,8 @@ import type { AtsResult, HhCollectState, Vacancy } from '../../shared/types'
 import { json, withApi } from './_lib'
 
 const SCORE_BATCH = 3
-const QUALIFIED_MIN = 65
+/** Primary recommendations band (§39 feed.primary_min_score). */
+const QUALIFIED_MIN = 70
 
 function toPlan(collect: HhCollectState): HhCollectPlan {
   return {

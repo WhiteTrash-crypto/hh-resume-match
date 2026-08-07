@@ -14,7 +14,8 @@
     "compare:hh:diag": "tsx scripts/compare-hh-diag.ts",
     "compare:hh:install": "playwright install chromium",
     "smoke:hh:browser": "tsx scripts/smoke-hh-browser.ts",
-    "smoke:hh:apify": "tsx scripts/smoke-hh-apify.ts"
+    "smoke:hh:apify": "tsx scripts/smoke-hh-apify.ts",
+    "test:matcher": "tsx shared/matcher/__tests__/run.ts"
   },
   "dependencies": {
     "@netlify/blobs": "^9.1.2",

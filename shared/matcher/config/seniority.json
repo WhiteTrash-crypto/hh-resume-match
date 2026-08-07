@@ -1,0 +1,12 @@
+{
+  "intern": ["intern", "internship", "стажер", "стажёр"],
+  "junior": ["junior", "jr", "associate", "джуниор", "младший"],
+  "middle": ["middle", "mid-level", "mid level", "mid", "мидл"],
+  "middle_plus": ["middle+", "middle plus", "middle+", "мидл+"],
+  "senior": ["senior", "sr", "experienced", "синьор", "сеньор", "старший", "ведущий"],
+  "lead": ["lead", "principal", "staff", "лид", "тимлид", "team lead", "tech lead"],
+  "head": ["head of", "group product manager", "руководитель направления", "head"],
+  "director": ["director", "директор"],
+  "vp": ["vp", "vice president"],
+  "c_level": ["cto", "ceo", "cpo", "cfo", "chief"]
+}

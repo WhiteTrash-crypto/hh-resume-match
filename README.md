@@ -1,6 +1,6 @@
 # Матч HH
 
-Публичный сервис: резюме → вакансии hh.ru → ATS-скоринг (OpenAI) → ваша Google Sheet.
+Публичный сервис: резюме → вакансии hh.ru → rule-based ATS-скоринг → ваша Google Sheet.
 
 - Без регистрации (cookie-сессия)
 - Несколько PDF-резюме
@@ -28,8 +28,8 @@ npm run dev   # netlify dev → http://localhost:8888
 | `APIFY_ACTOR` | актор, по умолчанию `abotapi/hh-ru-jobs-scraper` |
 | `HH_PROXY` | опционально: HTTP(S) прокси для `fetch`/`browser` |
 | `HH_USER_AGENT` | опционально: User-Agent для запросов к hh.ru |
-| `OPENAI_API_KEY` | ATS-скоринг |
-| `OPENAI_MODEL` | модель OpenAI для ATS |
+| `OPENAI_API_KEY` | устарело для ATS (rule-based); можно не задавать |
+| `OPENAI_MODEL` | устарело для ATS |
 | `GOOGLE_SA_JSON` / `GOOGLE_SA_PATH` | service account (на Netlify — JSON) |
 | `PUBLIC_GOOGLE_SA_EMAIL` / `VITE_GOOGLE_SA_EMAIL` | email для шаринга таблицы |
 | `SESSION_SECRET` | резерв под подпись cookie |
@@ -75,7 +75,7 @@ curl -s -X POST https://YOUR_SITE/api/scrape-mode \
 2. Создать Google Sheet → Share → Editor на `PUBLIC_GOOGLE_SA_EMAIL`
 3. Вставить ссылку + поисковый запрос
 4. «Начать парсинг»
-5. Смотреть вкладки `hh_candidates` / `hh_qualified` (score ≥ 65)
+5. Смотреть вкладки `hh_candidates` / `hh_qualified` (score ≥ 70)
 
 ## Деплой на Netlify
 
@@ -84,6 +84,10 @@ curl -s -X POST https://YOUR_SITE/api/scrape-mode \
 3. Publish directory: `dist`
 4. Functions directory: `netlify/functions`
 5. Прописать env
+
+## ATS (rule-based)
+
+Скоринг детерминированный: профиль из PDF + поисковых ключей, hard filters, 8 измерений, explanations в колонке `reason`. Без LLM. Конфиг: `shared/matcher/config/`. Тесты: `npm run test:matcher`.
 
 ## Ограничения MVP
 

@@ -1,0 +1,86 @@
+{
+  "required": [
+    "must",
+    "required",
+    "mandatory",
+    "minimum requirement",
+    "essential",
+    "need to have",
+    "you must have",
+    "at least",
+    "minimum of",
+    "cannot consider candidates without",
+    "обязательн",
+    "необходимо",
+    "требуется",
+    "must have",
+    "обязателен",
+    "обязательно"
+  ],
+  "preferred": [
+    "preferred",
+    "nice to have",
+    "nice-to-have",
+    "bonus",
+    "would be a plus",
+    "is a plus",
+    "advantage",
+    "ideally",
+    "good to have",
+    "desirable",
+    "будет плюсом",
+    "желательн",
+    "будет преимуществом",
+    "плюс"
+  ],
+  "sections": {
+    "requirements": [
+      "requirements",
+      "qualifications",
+      "what you need",
+      "what we're looking for",
+      "what we expect",
+      "must have",
+      "your background",
+      "требования",
+      "мы ожидаем",
+      "необходимые навыки",
+      "обязательные требования"
+    ],
+    "responsibilities": [
+      "responsibilities",
+      "what you'll do",
+      "your role",
+      "duties",
+      "key responsibilities",
+      "обязанности",
+      "чем предстоит заниматься",
+      "задачи"
+    ],
+    "nice_to_have": [
+      "nice to have",
+      "preferred",
+      "bonus points",
+      "would be a plus",
+      "advantage",
+      "будет плюсом",
+      "желательно"
+    ],
+    "about_company": [
+      "about the company",
+      "about us",
+      "who we are",
+      "о компании",
+      "мы"
+    ],
+    "benefits": [
+      "benefits",
+      "perks",
+      "what we offer",
+      "мы предлагаем",
+      "условия"
+    ],
+    "education": ["education", "образование"],
+    "languages": ["languages", "языки"]
+  }
+}

@@ -20,7 +20,7 @@
 
 [functions]
   node_bundler = "esbuild"
-  included_files = ["shared/**"]
+  included_files = ["shared/**", "shared/matcher/config/**"]
   external_node_modules = ["playwright"]
 
 [[redirects]]
